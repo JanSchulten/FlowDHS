@@ -1,19 +1,41 @@
-import { CalendarCheck, CalendarRange, Layers, Timer, Settings } from 'lucide-react';
+import { CalendarCheck, CalendarRange, Layers, KanbanSquare, Brain, Timer, Settings } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Toggle } from '../ui/Toggle';
 
-const NAV = [
+interface NavItem {
+  page: string;
+  label: string;
+  icon: LucideIcon;
+  group: string | null;
+  badgeKey?: 'open' | 'dump';
+}
+
+const NAV: NavItem[] = [
   { page: 'today', label: 'Tagesplan', icon: CalendarCheck, group: 'Heute' },
   { page: 'week', label: 'Wochenplan', icon: CalendarRange, group: null },
-  { page: 'projects', label: 'Alle Projekte', icon: Layers, group: 'Projekte' },
+  { page: 'board', label: 'Board', icon: KanbanSquare, group: 'Projekte' },
+  { page: 'projects', label: 'Alle Projekte', icon: Layers, group: null, badgeKey: 'open' },
+  { page: 'inbox', label: 'Brain-Dump', icon: Brain, group: null, badgeKey: 'dump' },
   { page: 'focus', label: 'Fokus-Timer', icon: Timer, group: null },
   { page: 'settings', label: 'Einstellungen', icon: Settings, group: 'System' },
 ];
 
 interface Props {
   activePage: string;
+  openCount: number;
+  dumpCount: number;
+  calmMode: boolean;
   onNavigate: (page: string) => void;
+  onToggleCalm: (v: boolean) => void;
 }
 
-export function SideBar({ activePage, onNavigate }: Props) {
+export function SideBar({ activePage, openCount, dumpCount, calmMode, onNavigate, onToggleCalm }: Props) {
+  const badge = (item: NavItem): number | null => {
+    if (item.badgeKey === 'open') return openCount || null;
+    if (item.badgeKey === 'dump') return dumpCount || null;
+    return null;
+  };
+
   return (
     <nav className="sidebar" aria-label="Hauptnavigation">
       {NAV.map((item) => (
@@ -31,9 +53,17 @@ export function SideBar({ activePage, onNavigate }: Props) {
           >
             <item.icon />
             <span>{item.label}</span>
+            {badge(item) != null && <span className="nav-badge">{badge(item)}</span>}
           </div>
         </div>
       ))}
+
+      <div className="sidebar-foot">
+        <div className="calm-toggle">
+          <span>🧘 Ruhe-Modus</span>
+          <Toggle checked={calmMode} onChange={onToggleCalm} aria-label="Ruhe-Modus umschalten" />
+        </div>
+      </div>
     </nav>
   );
 }

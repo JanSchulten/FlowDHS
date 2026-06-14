@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
-import { Pencil, Trash2, Check, Plus } from 'lucide-react';
-import type { Project } from '../../types';
+import { Pencil, Trash2, Check, Plus, Axe, Timer } from 'lucide-react';
+import type { Project, Subtask } from '../../types';
 import { DeadlineChip } from '../ui/DeadlineChip';
 import { SubtaskItem } from './SubtaskItem';
 import { tagLabel } from '../../engine/utils';
+import { suggestSteps } from '../../engine/breakdown';
 
 const PRIO_LABELS: Record<string, string> = {
   high: '🔴 Hoch',
@@ -19,6 +20,8 @@ interface Props {
   onToggleSubtask: (pid: string, sid: string) => void;
   onDeleteSubtask: (pid: string, sid: string) => void;
   onAddSubtask: (pid: string, name: string, dur: number) => void;
+  onAddSubtasksBulk: (pid: string, subtasks: Omit<Subtask, 'id'>[]) => void;
+  onFocus: (pid: string) => void;
 }
 
 export function ProjectCard({
@@ -29,6 +32,8 @@ export function ProjectCard({
   onToggleSubtask,
   onDeleteSubtask,
   onAddSubtask,
+  onAddSubtasksBulk,
+  onFocus,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -75,13 +80,18 @@ export function ProjectCard({
             <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)' }}>
               {project.weekBudgetH}h/Woche · ~{Math.round((project.estimateMins / 60) * 10) / 10}h gesamt
             </span>
+            {project.actualMins > 0 && (
+              <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--ok)' }}>
+                {Math.round((project.actualMins / 60) * 10) / 10}h fokussiert
+              </span>
+            )}
             {subtasks.length > 0 && (
               <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)' }}>
-                {doneSubs}/{subtasks.length} Subtasks
+                {doneSubs}/{subtasks.length} Schritte
               </span>
             )}
           </div>
-          <div className="progress-track" style={{ marginTop: '.375rem', width: 200, maxWidth: '100%' }}>
+          <div className="progress-track" style={{ marginTop: '.4rem', width: 220, maxWidth: '100%' }}>
             <div
               className="progress-fill"
               style={{ width: `${pct}%`, background: pct === 100 ? 'var(--ok)' : 'var(--pri)' }}
@@ -90,11 +100,10 @@ export function ProjectCard({
         </div>
 
         <div className="project-actions" onClick={(e) => e.stopPropagation()}>
-          <button
-            className="icon-btn btn-sm"
-            onClick={() => onEdit(project)}
-            aria-label={`Projekt bearbeiten: ${project.name}`}
-          >
+          <button className="icon-btn btn-sm" onClick={() => onFocus(project.id)} aria-label={`Fokus starten: ${project.name}`}>
+            <Timer size={13} />
+          </button>
+          <button className="icon-btn btn-sm" onClick={() => onEdit(project)} aria-label={`Projekt bearbeiten: ${project.name}`}>
             <Pencil size={13} />
           </button>
           <button
@@ -108,7 +117,7 @@ export function ProjectCard({
       </div>
 
       <div className={`project-body ${expanded ? '' : 'collapsed'}`}>
-        {subtasks.length > 0 && (
+        {subtasks.length > 0 ? (
           <div className="subtask-list">
             {subtasks.map((st) => (
               <SubtaskItem
@@ -120,15 +129,28 @@ export function ProjectCard({
               />
             ))}
           </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem', marginBottom: '.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx2)' }}>
+              Zu groß zum Anfangen? Lass es in kleine Schritte zerlegen.
+            </span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => onAddSubtasksBulk(project.id, suggestSteps(project))}
+              aria-label="In Schritte zerlegen"
+            >
+              <Axe size={13} /> Auto-zerlegen
+            </button>
+          </div>
         )}
         <div className="add-subtask-row">
           <input
             ref={nameRef}
             className="input"
-            placeholder="Neue Unteraufgabe..."
+            placeholder="Neuer Schritt..."
             style={{ flex: 1, fontSize: 'var(--tx-xs)' }}
             onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask()}
-            aria-label="Unteraufgabe Name"
+            aria-label="Schritt Name"
           />
           <input
             ref={durRef}
@@ -139,13 +161,9 @@ export function ProjectCard({
             defaultValue={25}
             placeholder="Min"
             style={{ width: 68, fontSize: 'var(--tx-xs)' }}
-            aria-label="Unteraufgabe Dauer in Minuten"
+            aria-label="Schritt Dauer in Minuten"
           />
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={handleAddSubtask}
-            aria-label="Unteraufgabe hinzufügen"
-          >
+          <button className="btn btn-ghost btn-sm" onClick={handleAddSubtask} aria-label="Schritt hinzufügen">
             <Plus size={12} />
           </button>
         </div>

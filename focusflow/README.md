@@ -1,73 +1,68 @@
-# React + TypeScript + Vite
+# FocusFlow
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Adaptiver ADHS-Tagesplaner — React 18 + Vite + TypeScript. Wissenschaftlich
+fundierte Werkzeuge gegen die typischen ADHS-Hürden, gepaart mit einer
+modernen, reizarmen Oberfläche auf monday.com-Niveau.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Planung**
+- Adaptiver Tagesplan mit automatischen Pausen (kurz/lang nach 3 Blöcken)
+- Wochenplan mit Zeitbudgets pro Projekt & Deadline-Druck
+- Kanban-**Board** (Backlog → Heute → In Arbeit → Erledigt) mit Drag & Drop
+- Automatische Umplanung verpasster Aufgaben (kein Shame-Loop)
 
-## React Compiler
+**ADHS-spezifisch (wissenschaftlich)**
+- 🧠 **Brain-Dump**: Ein-Klick-Inbox zum sofortigen Auslagern von Gedanken
+  (entlastet das Arbeitsgedächtnis)
+- 🪓 **Auto-Zerlegung**: große Projekte werden in winzige Schritte zerlegt —
+  inkl. „nur anfangen“-Starter gegen die Aktivierungsblockade
+- ⏳ **Zeitblindheit-Hilfen**: schrumpfender Zeit-Ring, „Jetzt / Als Nächstes“,
+  geschätzte vs. tatsächlich fokussierte Zeit
+- 🏆 **Gamification**: XP, Level, Erfolge, Streaks & Konfetti (Dopamin-System)
+- 🧘 **Ruhe-Modus**: reduziert Animationen & visuelle Reize
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Komfort**
+- ⌘K **Command-Palette** zum Springen & für Aktionen
+- Dark/Light Mode, vollständig tastaturbedienbar, `prefers-reduced-motion`
+- Mobile-first mit Bottom-Navigation
 
-## Expanding the ESLint configuration
+**Datenbank: Google Sheets**
+Alle Projekte können in deine eigene Google-Tabelle synchronisiert werden
+(Lesen & Schreiben) — wie eine kleine Datenbank. Lokal bleibt `localStorage`
+die Quelle, Google Sheets ist die optionale Sync-/Backup-Ebene.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Entwicklung
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Google-Sheets-Sync einrichten
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. In der [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   ein Projekt anlegen.
+2. **Google Sheets API** aktivieren und eine **OAuth-Client-ID** (Typ
+   „Webanwendung“) erstellen. Die URL der laufenden App unter „Autorisierte
+   JavaScript-Quellen“ eintragen.
+3. In FocusFlow → *Einstellungen* die Client-ID und den Link eines eigenen
+   (leeren) Google Sheets eintragen.
+4. „Hochladen“ klicken → mit Google anmelden. FocusFlow legt die Tabs
+   `Projects` und `Subtasks` an und hält sie aktuell.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Architektur
+
 ```
+src/
+  types/          Datenmodelle (Project, Subtask, Schedule, Gamification, …)
+  engine/         planner · gamification · breakdown · sheets · utils
+  store/          useReducer + localStorage (reducer.ts, useStore.ts)
+  components/     layout · ui · pages · projects · board · sync
+  styles/         tokens.css (Design-Tokens) · base.css
+```
+
+State: `useReducer` + `localStorage` (kein Redux). Einzige Laufzeit-Abhängigkeit
+neben React ist `lucide-react`; Google Identity Services wird bei Bedarf
+dynamisch geladen.

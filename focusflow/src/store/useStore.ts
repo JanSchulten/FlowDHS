@@ -4,7 +4,10 @@ import type { AppState, Action } from './reducer';
 
 function saveToStorage(state: AppState) {
   try {
-    const { pom: _pom, activePage: _ap, projectFilter: _pf, confettiTrigger: _ct, ...persist } = state;
+    const {
+      pom: _pom, activePage: _ap, projectFilter: _pf, confettiTrigger: _ct,
+      toast: _t, commandOpen: _co, sync: _sy, ...persist
+    } = state;
     localStorage.setItem('ff2_state', JSON.stringify(persist));
   } catch {}
 }

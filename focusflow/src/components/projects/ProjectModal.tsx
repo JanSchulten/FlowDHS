@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Check } from 'lucide-react';
-import type { Project, Subtask, Priority, Tag } from '../../types';
+import { Plus, X, Check, Axe } from 'lucide-react';
+import type { Project, Subtask, Priority, Tag, BoardStatus } from '../../types';
 import { Modal } from '../ui/Modal';
 import { uid } from '../../engine/utils';
+import { suggestSteps } from '../../engine/breakdown';
 
 interface Props {
   open: boolean;
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
   priority: 'med' as Priority,
   tag: 'focus' as Tag,
   estimateH: 4,
+  status: 'backlog' as BoardStatus,
 };
 
 export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
@@ -36,6 +38,7 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
           priority: editProject.priority,
           tag: editProject.tag,
           estimateH: Math.round((editProject.estimateMins / 60) * 10) / 10,
+          status: editProject.status,
         });
         setSubtasks([...(editProject.subtasks ?? [])]);
       } else {
@@ -57,6 +60,15 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
 
   const removeSubtask = (id: string) => setSubtasks((prev) => prev.filter((s) => s.id !== id));
 
+  const autoBreakdown = () => {
+    const steps = suggestSteps({
+      name: form.name || 'Projekt',
+      estimateMins: Math.round(form.estimateH * 60),
+      tag: form.tag,
+    });
+    setSubtasks((prev) => [...prev, ...steps.map((s) => ({ ...s, id: uid() }))]);
+  };
+
   const handleSave = () => {
     const name = form.name.trim();
     if (!name) return;
@@ -67,7 +79,10 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
       priority: form.priority,
       tag: form.tag,
       estimateMins: Math.round(form.estimateH * 60),
-      done: editProject?.done ?? false,
+      status: form.status,
+      done: form.status === 'done' || (editProject?.done ?? false),
+      actualMins: editProject?.actualMins ?? 0,
+      note: editProject?.note,
       subtasks,
     });
   };
@@ -172,13 +187,33 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
         </div>
       </div>
 
+      <div className="form-group">
+        <label className="form-label" htmlFor="m-status">Spalte</label>
+        <select
+          id="m-status"
+          className="input"
+          value={form.status}
+          onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as BoardStatus }))}
+        >
+          <option value="backlog">Backlog</option>
+          <option value="today">Heute</option>
+          <option value="doing">In Arbeit</option>
+          <option value="done">Erledigt</option>
+        </select>
+      </div>
+
       <div style={{ borderTop: '1px solid var(--div)', margin: '.5rem -1.5rem', padding: '.75rem 1.5rem 0' }}>
-        <div style={{ fontSize: 'var(--tx-sm)', fontWeight: 600, marginBottom: '.5rem' }}>Unteraufgaben (optional)</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
+          <span style={{ fontSize: 'var(--tx-sm)', fontWeight: 600 }}>Schritte / Unteraufgaben</span>
+          <button className="btn btn-ghost btn-sm" onClick={autoBreakdown} aria-label="Automatisch in Schritte zerlegen">
+            <Axe size={13} /> Auto-zerlegen
+          </button>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.375rem', marginBottom: '.5rem' }}>
           {subtasks.map((s) => (
             <div
               key={s.id}
-              style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.25rem .25rem', background: 'var(--surf3)', borderRadius: 'var(--r-md)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .35rem', background: 'var(--surf3)', borderRadius: 'var(--r-md)' }}
             >
               <span style={{ flex: 1, fontSize: 'var(--tx-xs)' }}>{s.name}</span>
               <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{s.dur}m</span>
@@ -186,7 +221,7 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
                 className="icon-btn"
                 style={{ width: 20, height: 20 }}
                 onClick={() => removeSubtask(s.id)}
-                aria-label={`Unteraufgabe entfernen: ${s.name}`}
+                aria-label={`Schritt entfernen: ${s.name}`}
               >
                 <X size={11} />
               </button>
@@ -196,12 +231,12 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
         <div style={{ display: 'flex', gap: '.5rem' }}>
           <input
             className="input"
-            placeholder="Unteraufgabe..."
+            placeholder="Schritt..."
             style={{ flex: 1 }}
             value={newSubName}
             onChange={(e) => setNewSubName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addSubtask()}
-            aria-label="Neue Unteraufgabe Name"
+            aria-label="Neuer Schritt Name"
           />
           <input
             className="input"
@@ -212,13 +247,9 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
             onChange={(e) => setNewSubDur(parseInt(e.target.value) || 25)}
             placeholder="Min"
             style={{ width: 72 }}
-            aria-label="Unteraufgabe Dauer in Minuten"
+            aria-label="Schritt Dauer in Minuten"
           />
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={addSubtask}
-            aria-label="Unteraufgabe hinzufügen"
-          >
+          <button className="btn btn-ghost btn-sm" onClick={addSubtask} aria-label="Schritt hinzufügen">
             <Plus size={13} />
           </button>
         </div>

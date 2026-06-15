@@ -97,6 +97,9 @@ export type Schedule = Record<string, ScheduleSlot[]>;
 export interface Settings {
   start: string;
   end: string;
+  /** Optional private-time window — only private-context projects are scheduled here. */
+  privateStart?: string;
+  privateEnd?: string;
   maxBlocks: number;
   breakS: number;
   breakL: number;

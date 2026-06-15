@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Clock, Coffee, Bell, RefreshCw, Trophy, Tag, Plus, X, Pencil } from 'lucide-react';
+import { Clock, Coffee, Bell, RefreshCw, Trophy, Tag, Plus, X, Pencil, Home } from 'lucide-react';
 import type { AppState, Action } from '../../store/useStore';
 import { Toggle } from '../ui/Toggle';
 import { AccountPanel } from '../auth/AccountPanel';
 import { levelTitle } from '../../engine/gamification';
 import type { Settings as SettingsType, CustomCategory } from '../../types';
 import { useNotifications } from '../../hooks/useNotifications';
+import { TimePicker } from '../ui/TimePicker';
 
 interface Props {
   state: AppState;
@@ -90,20 +91,58 @@ export function Settings({ state, dispatch }: Props) {
         </div>
 
         <div className="card">
-          <div className="card-title"><Clock size={16} /> Arbeitszeiten</div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="stg-start">Frühester Start</label>
-            <input id="stg-start" className="input" type="time" value={settings.start} onChange={(e) => update({ start: e.target.value })} />
+          <div className="card-title"><Clock size={16} /> 💼 Arbeitszeiten</div>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <TimePicker label="Frühester Start" value={settings.start} onChange={(v) => update({ start: v })} />
+            <TimePicker label="Spätestes Ende" value={settings.end} onChange={(v) => update({ end: v })} />
           </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="stg-end">Spätestes Ende</label>
-            <input id="stg-end" className="input" type="time" value={settings.end} onChange={(e) => update({ end: e.target.value })} />
-          </div>
-          <div className="form-group">
+          <div className="form-group" style={{ marginTop: '1rem' }}>
             <label className="form-label" htmlFor="stg-blocks">Max. Fokus-Blöcke / Tag (ADHS-Limit)</label>
             <input id="stg-blocks" className="input" type="number" min={1} max={8} value={settings.maxBlocks} onChange={(e) => update({ maxBlocks: parseInt(e.target.value) || 4 })} />
-            <div className="form-hint">Empfohlen: 3–4 Deep-Work-Blöcke à 25–45 Min</div>
+            <div className="form-hint">Empfohlen: 3–4 Deep-Work-Blöcke à 25–45 Min. Nur Arbeitsprojekte werden hier eingeplant, wenn eine Privatzeit gesetzt ist.</div>
           </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title"><Home size={16} /> 🏠 Privatzeit</div>
+          <p style={{ fontSize: 'var(--tx-sm)', color: 'var(--tx2)', marginBottom: '1rem' }}>
+            Optional. In diesem Zeitraum werden <strong>nur private Projekte</strong> eingeplant — keine Arbeitsprojekte.
+          </p>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <TimePicker
+              label="Von"
+              value={settings.privateStart ?? '18:00'}
+              onChange={(v) => update({ privateStart: v })}
+            />
+            <TimePicker
+              label="Bis"
+              value={settings.privateEnd ?? '22:00'}
+              onChange={(v) => update({ privateEnd: v })}
+            />
+            {settings.privateStart && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ marginBottom: '4px' }}
+                onClick={() => update({ privateStart: undefined, privateEnd: undefined })}
+              >
+                <X size={13} /> Deaktivieren
+              </button>
+            )}
+          </div>
+          {!settings.privateStart && (
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ marginTop: '.75rem' }}
+              onClick={() => update({ privateStart: '18:00', privateEnd: '22:00' })}
+            >
+              <Plus size={13} /> Privatzeit aktivieren
+            </button>
+          )}
+          {settings.privateStart && (
+            <div className="form-hint" style={{ marginTop: '.5rem' }}>
+              Aktiv: {settings.privateStart}–{settings.privateEnd} · Nur Projekte mit Kontext „🏠 Privat" werden hier eingeplant.
+            </div>
+          )}
         </div>
 
         <div className="card">

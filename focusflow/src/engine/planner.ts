@@ -95,6 +95,58 @@ function fixedSlot(f: Fixture): ScheduleSlot {
   };
 }
 
+// Fills a time window [windowStart, windowEnd] with tasks, flowing around busy intervals.
+function fillWindow(
+  tasks: TaskItem[],
+  windowStart: string,
+  windowEnd: string,
+  busy: Interval[],
+  maxBlocks: number,
+  breakS: number,
+  breakL: number,
+): ScheduleSlot[] {
+  const slots: ScheduleSlot[] = [];
+  let cur = windowStart;
+  let blockCount = 0;
+  let blockStreak = 0;
+  let i = 0;
+
+  while (i < tasks.length && blockCount < maxBlocks) {
+    cur = nextFree(cur, busy);
+    if (timeDiff(cur, windowEnd) < 10) break;
+    const ge = gapEnd(cur, busy, windowEnd);
+    const t = tasks[i];
+    const end = addMins(cur, t.dur);
+
+    if (timeDiff(end, ge) < 0) {
+      if (mins(ge) >= mins(windowEnd)) break;
+      cur = ge;
+      continue;
+    }
+
+    slots.push({
+      id: uid(), type: 'task', projectId: t.projectId, subtaskId: t.subtaskId,
+      label: t.label, start: cur, end, dur: t.dur, done: false, missed: false, tag: t.tag as never,
+    });
+    cur = end; blockCount++; blockStreak++; i++;
+
+    if (timeDiff(cur, windowEnd) > 0) {
+      const breakDur = blockStreak % 3 === 0 ? breakL : breakS;
+      if (timeDiff(addMins(cur, breakDur), ge) >= 0) {
+        const bEnd = addMins(cur, breakDur);
+        slots.push({
+          id: uid(), type: 'break',
+          label: blockStreak % 3 === 0 ? '☕ Lange Pause' : '🧘 Kurze Pause',
+          start: cur, end: bEnd, dur: breakDur, done: false, missed: false,
+        });
+        cur = bEnd;
+      }
+    }
+  }
+
+  return slots;
+}
+
 export function planDay(
   dateStr: string,
   projects: Project[],
@@ -106,7 +158,7 @@ export function planDay(
   const todays = fixturesForDate(fixtures, dateStr);
   const busy: Interval[] = todays.map((f) => ({ start: f.start, end: f.end }));
 
-  // 1) Render every fixture as a fixed slot (the appointment band).
+  // 1) Render every fixture as a fixed slot.
   for (const f of todays) slots.push(fixedSlot(f));
 
   // 2) Fill container fixtures with their assigned projects' tasks.
@@ -126,49 +178,39 @@ export function planDay(
     }
   }
 
-  // 3) Schedule free projects (no container assignment) into the open gaps,
-  //    flowing around all fixtures, with breaks and the daily block cap.
+  // 3) Split free projects by work context and schedule each in its own window.
   const containerIds = new Set(todays.filter((f) => f.kind === 'container').map((f) => f.id));
   const freeProjects = projects.filter((p) => !p.fixtureId || !containerIds.has(p.fixtureId));
-  const tasks = collectTasks(freeProjects, overrides);
 
-  let cur = settings.start;
-  let blockCount = 0;
-  let blockStreak = 0;
-  let i = 0;
-  while (i < tasks.length && blockCount < settings.maxBlocks) {
-    cur = nextFree(cur, busy);
-    if (timeDiff(cur, settings.end) < 10) break;
-    const ge = gapEnd(cur, busy, settings.end);
-    const t = tasks[i];
-    const end = addMins(cur, t.dur);
+  const hasPrivateWindow = !!(settings.privateStart && settings.privateEnd);
 
-    if (timeDiff(end, ge) < 0) {
-      // Task doesn't fit in this gap → skip past the blocking fixture.
-      if (mins(ge) >= mins(settings.end)) break;
-      cur = ge;
-      continue;
-    }
+  // Work projects → work window; private projects → private window (or fallback to work window).
+  const workProjects = hasPrivateWindow
+    ? freeProjects.filter((p) => p.workContext !== 'private')
+    : freeProjects;
+  const privateProjects = hasPrivateWindow
+    ? freeProjects.filter((p) => p.workContext === 'private')
+    : [];
 
-    slots.push({
-      id: uid(), type: 'task', projectId: t.projectId, subtaskId: t.subtaskId,
-      label: t.label, start: cur, end, dur: t.dur, done: false, missed: false, tag: t.tag as never,
-    });
-    cur = end; blockCount++; blockStreak++; i++;
+  // Work time busy = fixtures + private window (so work tasks don't bleed into private time).
+  const privateBusy: Interval[] = hasPrivateWindow
+    ? [{ start: settings.privateStart!, end: settings.privateEnd! }]
+    : [];
+  const workBusy = [...busy, ...privateBusy];
 
-    // Insert a break only if it fits before the gap ends.
-    if (timeDiff(cur, settings.end) > 0) {
-      const breakDur = blockStreak % 3 === 0 ? settings.breakL : settings.breakS;
-      if (timeDiff(addMins(cur, breakDur), ge) >= 0) {
-        const bEnd = addMins(cur, breakDur);
-        slots.push({
-          id: uid(), type: 'break',
-          label: blockStreak % 3 === 0 ? '☕ Lange Pause' : '🧘 Kurze Pause',
-          start: cur, end: bEnd, dur: breakDur, done: false, missed: false,
-        });
-        cur = bEnd;
-      }
-    }
+  const workTasks = collectTasks(workProjects, overrides);
+  const workSlots = fillWindow(workTasks, settings.start, settings.end, workBusy, settings.maxBlocks, settings.breakS, settings.breakL);
+  slots.push(...workSlots);
+
+  // Private window: busy = fixtures + all just-scheduled work slots.
+  if (hasPrivateWindow && privateProjects.length > 0) {
+    const scheduledBusy = workSlots.map((s) => ({ start: s.start, end: s.end }));
+    const privateTasks = collectTasks(privateProjects);
+    const pvSlots = fillWindow(
+      privateTasks, settings.privateStart!, settings.privateEnd!,
+      [...busy, ...scheduledBusy], settings.maxBlocks, settings.breakS, settings.breakL,
+    );
+    slots.push(...pvSlots);
   }
 
   // Single timeline, ordered by start; fixed bands win ties so they read as headers.

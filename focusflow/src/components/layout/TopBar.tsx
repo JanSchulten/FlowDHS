@@ -1,5 +1,5 @@
-import { Moon, Sun, Search, Cloud, LogIn } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Moon, Sun, Search, Cloud, LogIn, Plus, Layers, CalendarClock } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { SyncState, AppUser } from '../../types';
 import { LevelWidget } from '../ui/LevelWidget';
 
@@ -12,10 +12,17 @@ interface Props {
   onToggleTheme: () => void;
   onOpenCommand: () => void;
   onOpenSettings: () => void;
+  onNewProject: () => void;
+  onNewFixture: () => void;
 }
 
-export function TopBar({ theme, xp, streak, sync, user, onToggleTheme, onOpenCommand, onOpenSettings }: Props) {
+export function TopBar({
+  theme, xp, streak, sync, user,
+  onToggleTheme, onOpenCommand, onOpenSettings, onNewProject, onNewFixture,
+}: Props) {
   const [dateStr, setDateStr] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const addRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const update = () => {
@@ -25,6 +32,18 @@ export function TopBar({ theme, xp, streak, sync, user, onToggleTheme, onOpenCom
     const iv = setInterval(update, 30000);
     return () => clearInterval(iv);
   }, []);
+
+  // Close the quick-add menu on outside click or Escape.
+  useEffect(() => {
+    if (!addOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (addRef.current && !addRef.current.contains(e.target as Node)) setAddOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAddOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [addOpen]);
 
   const syncLabel =
     sync.status === 'connected' ? 'Sync' :
@@ -40,7 +59,7 @@ export function TopBar({ theme, xp, streak, sync, user, onToggleTheme, onOpenCom
             <path d="M8 13h5.5M8 9.5h10M8 16.5h4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
           </svg>
         </span>
-        FocusFlow
+        FlowDHS
       </div>
 
       <button className="cmd-trigger" onClick={onOpenCommand} aria-label="Befehlspalette öffnen">
@@ -48,6 +67,36 @@ export function TopBar({ theme, xp, streak, sync, user, onToggleTheme, onOpenCom
         <span>Suchen oder springen…</span>
         <kbd>⌘K</kbd>
       </button>
+
+      <div className="quick-add" ref={addRef}>
+        <button
+          className="btn btn-pri btn-sm quick-add-btn"
+          onClick={() => setAddOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={addOpen}
+          aria-label="Neu erstellen"
+        >
+          <Plus size={15} /> <span className="quick-add-label">Neu</span>
+        </button>
+        {addOpen && (
+          <div className="quick-add-menu" role="menu">
+            <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewProject(); }}>
+              <Layers size={15} />
+              <span>
+                <strong>Neues Projekt</strong>
+                <small>Aufgabe mit Deadline & Schritten</small>
+              </span>
+            </button>
+            <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewFixture(); }}>
+              <CalendarClock size={15} />
+              <span>
+                <strong>Neuer Termin</strong>
+                <small>Fester, zeitgebundener Termin</small>
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="topbar-spacer" />
 

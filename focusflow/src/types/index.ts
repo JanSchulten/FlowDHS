@@ -6,10 +6,22 @@ export interface Subtask {
 }
 
 export type Priority = 'high' | 'med' | 'low';
-export type Tag = 'focus' | 'creative' | 'energy' | 'admin';
+export type BuiltinTag = 'focus' | 'creative' | 'energy' | 'admin';
+export type Tag = string; // built-in or custom category id
+
+export type WorkContext = 'work' | 'private';
 
 /** Kanban / board column the project currently lives in. */
 export type BoardStatus = 'backlog' | 'today' | 'doing' | 'done';
+
+export interface CustomCategory {
+  id: string;
+  name: string;
+  /** Foreground hex color, e.g. '#a78bfa' */
+  color: string;
+  /** Background hex color for the chip */
+  bgColor: string;
+}
 
 export interface Project {
   id: string;
@@ -30,12 +42,15 @@ export interface Project {
   note?: string;
   /** If set, this project is only scheduled inside the matching container Fixture. */
   fixtureId?: string;
+  /** Work or private context — private tasks can fill work slots, work tasks cannot fill private slots. */
+  workContext: WorkContext;
 }
 
 /* ── Fixed, time-bound appointments (e.g. work) ── */
 export type FixtureKind =
   | 'block'      // locked: nothing else can be scheduled in this window
-  | 'container'; // open: assigned tasks/projects are scheduled only inside it
+  | 'container'  // open: assigned tasks/projects are scheduled only inside it
+  | 'parallel';  // tasks can run alongside at reduced capacity
 
 export interface Fixture {
   id: string;
@@ -48,6 +63,13 @@ export interface Fixture {
   /** Specific date 'YYYY-MM-DD' for a one-off appointment (when `days` empty). */
   date: string | null;
   tag?: Tag;
+  /** Work context of this time slot — governs which projects can fill it. */
+  workContext?: WorkContext;
+  /**
+   * For kind='parallel': percentage of capacity available for parallel tasks (0–100).
+   * 100 = full parallel work, 50 = half capacity alongside the appointment.
+   */
+  parallelCapacity?: number;
 }
 
 export type SlotType = 'task' | 'break' | 'fixed';
@@ -83,6 +105,10 @@ export interface Settings {
   autoReschedule: boolean;
   /** Reduce visual noise / motion for sensory-sensitive users. */
   calmMode: boolean;
+  /** User-defined custom categories (appear alongside built-in tags). */
+  customCategories: CustomCategory[];
+  /** Whether browser notification permission has been requested. */
+  notifications: boolean;
 }
 
 export interface PomState {

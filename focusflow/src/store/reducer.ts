@@ -1,7 +1,7 @@
 import type {
   Project, Schedule, Settings, Subtask, PomState, BrainDumpItem,
   Gamification, Achievement, Stats, SyncState, Toast, BoardStatus,
-  AppUser, Fixture,
+  AppUser, Fixture, CustomCategory,
 } from '../types';
 import { uid, todayKey } from '../engine/utils';
 import { planDay, planWeek, checkMissed, autoReschedule } from '../engine/planner';
@@ -46,6 +46,7 @@ const SEED_FIXTURES: Fixture[] = [
 export const DEFAULT_SETTINGS: Settings = {
   start: '08:00', end: '19:00', maxBlocks: 4, breakS: 10, breakL: 30,
   sound: true, confetti: true, autoReschedule: true, calmMode: false,
+  customCategories: [], notifications: false,
 };
 
 const DEFAULT_STATS: Stats = {
@@ -152,7 +153,10 @@ export type Action =
   | { type: 'REPLACE_PROJECTS'; projects: Project[] }
   | { type: 'DISMISS_TOAST' }
   | { type: 'TOGGLE_COMMAND'; open?: boolean }
-  | { type: 'COMPLETE_ONBOARDING' };
+  | { type: 'COMPLETE_ONBOARDING' }
+  | { type: 'ADD_CATEGORY'; payload: Omit<CustomCategory, 'id'> }
+  | { type: 'UPDATE_CATEGORY'; payload: CustomCategory }
+  | { type: 'DELETE_CATEGORY'; id: string };
 
 function initialPom(dur = 25): PomState {
   return { running: false, secs: dur * 60, total: dur * 60, rounds: 0, isBreak: false, dur, projectId: null };
@@ -174,6 +178,7 @@ function migrateProject(p: Partial<Project>): Project {
     actualMins: p.actualMins ?? 0,
     note: p.note,
     fixtureId: p.fixtureId,
+    workContext: p.workContext ?? 'work',
   };
 }
 
@@ -570,7 +575,7 @@ export function reducer(state: AppState, action: Action): AppState {
         projects,
         fixtures: s.fixtures ?? state.fixtures,
         schedule: s.schedule ?? state.schedule,
-        settings: { ...state.settings, ...s.settings },
+        settings: { ...DEFAULT_SETTINGS, ...state.settings, ...s.settings },
         streak: s.streak ?? state.streak,
         theme: s.theme ?? state.theme,
         brainDump: s.brainDump ?? state.brainDump,
@@ -595,6 +600,21 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'COMPLETE_ONBOARDING':
       return { ...state, onboardingDone: true };
+
+    case 'ADD_CATEGORY': {
+      const cat: CustomCategory = { ...action.payload, id: uid() };
+      return { ...state, settings: { ...state.settings, customCategories: [...state.settings.customCategories, cat] } };
+    }
+
+    case 'UPDATE_CATEGORY': {
+      const cats = state.settings.customCategories.map((c) => (c.id === action.payload.id ? action.payload : c));
+      return { ...state, settings: { ...state.settings, customCategories: cats } };
+    }
+
+    case 'DELETE_CATEGORY': {
+      const cats = state.settings.customCategories.filter((c) => c.id !== action.id);
+      return { ...state, settings: { ...state.settings, customCategories: cats } };
+    }
 
     default:
       return state;

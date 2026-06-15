@@ -105,6 +105,7 @@ export function Projects({ state, dispatch }: Props) {
         open={modalOpen}
         editProject={editProject}
         containers={state.fixtures.filter((f) => f.kind === 'container')}
+        customCategories={state.settings.customCategories ?? []}
         onClose={() => { setModalOpen(false); setEditProject(null); }}
         onSave={handleSave}
       />

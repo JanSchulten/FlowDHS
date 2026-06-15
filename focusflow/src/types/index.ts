@@ -28,9 +28,29 @@ export interface Project {
   actualMins: number;
   /** Optional short note / context. */
   note?: string;
+  /** If set, this project is only scheduled inside the matching container Fixture. */
+  fixtureId?: string;
 }
 
-export type SlotType = 'task' | 'break';
+/* ── Fixed, time-bound appointments (e.g. work) ── */
+export type FixtureKind =
+  | 'block'      // locked: nothing else can be scheduled in this window
+  | 'container'; // open: assigned tasks/projects are scheduled only inside it
+
+export interface Fixture {
+  id: string;
+  name: string;
+  kind: FixtureKind;
+  start: string;          // 'HH:MM'
+  end: string;            // 'HH:MM'
+  /** Weekday indices it recurs on (0=So … 6=Sa). Empty => one-off on `date`. */
+  days: number[];
+  /** Specific date 'YYYY-MM-DD' for a one-off appointment (when `days` empty). */
+  date: string | null;
+  tag?: Tag;
+}
+
+export type SlotType = 'task' | 'break' | 'fixed';
 
 export interface ScheduleSlot {
   id: string;
@@ -44,6 +64,10 @@ export interface ScheduleSlot {
   done: boolean;
   missed: boolean;
   tag?: Tag;
+  /** For type 'fixed': which kind of appointment it represents. */
+  fixtureKind?: FixtureKind;
+  /** True for locked block appointments (nothing schedulable inside). */
+  locked?: boolean;
 }
 
 export type Schedule = Record<string, ScheduleSlot[]>;

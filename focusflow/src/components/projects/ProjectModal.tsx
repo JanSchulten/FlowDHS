@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Check, Axe } from 'lucide-react';
-import type { Project, Subtask, Priority, Tag, BoardStatus } from '../../types';
+import type { Project, Subtask, Priority, Tag, BoardStatus, Fixture } from '../../types';
 import { Modal } from '../ui/Modal';
 import { uid } from '../../engine/utils';
 import { suggestSteps } from '../../engine/breakdown';
@@ -8,6 +8,7 @@ import { suggestSteps } from '../../engine/breakdown';
 interface Props {
   open: boolean;
   editProject: Project | null;
+  containers: Fixture[];
   onClose: () => void;
   onSave: (data: Omit<Project, 'id' | 'createdAt'>) => void;
 }
@@ -20,9 +21,10 @@ const EMPTY_FORM = {
   tag: 'focus' as Tag,
   estimateH: 4,
   status: 'backlog' as BoardStatus,
+  fixtureId: '',
 };
 
-export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
+export function ProjectModal({ open, editProject, containers, onClose, onSave }: Props) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubName, setNewSubName] = useState('');
@@ -39,6 +41,7 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
           tag: editProject.tag,
           estimateH: Math.round((editProject.estimateMins / 60) * 10) / 10,
           status: editProject.status,
+          fixtureId: editProject.fixtureId ?? '',
         });
         setSubtasks([...(editProject.subtasks ?? [])]);
       } else {
@@ -83,6 +86,7 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
       done: form.status === 'done' || (editProject?.done ?? false),
       actualMins: editProject?.actualMins ?? 0,
       note: editProject?.note,
+      fixtureId: form.fixtureId || undefined,
       subtasks,
     });
   };
@@ -201,6 +205,24 @@ export function ProjectModal({ open, editProject, onClose, onSave }: Props) {
           <option value="done">Erledigt</option>
         </select>
       </div>
+
+      {containers.length > 0 && (
+        <div className="form-group">
+          <label className="form-label" htmlFor="m-fixture">Nur in diesem Fenster planen</label>
+          <select
+            id="m-fixture"
+            className="input"
+            value={form.fixtureId}
+            onChange={(e) => setForm((f) => ({ ...f, fixtureId: e.target.value }))}
+          >
+            <option value="">— Frei (überall planbar) —</option>
+            {containers.map((c) => (
+              <option key={c.id} value={c.id}>🪟 {c.name} ({c.start}–{c.end})</option>
+            ))}
+          </select>
+          <div className="form-hint">Bindet das Projekt an einen Fixtermin vom Typ „Fenster".</div>
+        </div>
+      )}
 
       <div style={{ borderTop: '1px solid var(--div)', margin: '.5rem -1.5rem', padding: '.75rem 1.5rem 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>

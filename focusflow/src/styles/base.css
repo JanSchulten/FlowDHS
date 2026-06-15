@@ -318,6 +318,8 @@ a { color: var(--pri); }
 .slot-break { border-left-color: var(--ok); background: var(--ok-bg); color: var(--ok); font-size: var(--tx-xs); }
 .slot-missed { border-left-color: var(--err); background: var(--err-bg); opacity: .75; }
 .slot-now { box-shadow: var(--glow); }
+.slot-fixed { border-left-color: var(--tx2); background: var(--bg3, var(--ok-bg)); display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.slot-fixed-lock { border-left-color: var(--warn); background: var(--warn-bg); }
 .slot-missed-label { font-size: var(--tx-xs); color: var(--err); margin-top: 4px; display: flex; align-items: center; gap: .4rem; }
 .reschedule-btn { font-size: var(--tx-xs); color: var(--warn); background: var(--warn-bg); border-radius: var(--r-sm); padding: 2px .45rem; display: inline-flex; align-items: center; gap: .2rem; }
 .reschedule-btn:hover { filter: brightness(1.1); }

@@ -1,7 +1,7 @@
 import type {
   Project, Schedule, Settings, Subtask, PomState, BrainDumpItem,
   Gamification, Achievement, Stats, SyncState, Toast, BoardStatus,
-  AppUser,
+  AppUser, Fixture,
 } from '../types';
 import { uid, todayKey } from '../engine/utils';
 import { planDay, planWeek, checkMissed, autoReschedule } from '../engine/planner';
@@ -36,6 +36,13 @@ const SEED_PROJECTS: Project[] = [
   },
 ];
 
+const SEED_FIXTURES: Fixture[] = [
+  {
+    id: 'fix-work', name: '💼 Arbeit', kind: 'block',
+    start: '09:00', end: '17:00', days: [1, 2, 3, 4, 5], date: null, tag: 'admin',
+  },
+];
+
 export const DEFAULT_SETTINGS: Settings = {
   start: '08:00', end: '19:00', maxBlocks: 4, breakS: 10, breakL: 30,
   sound: true, confetti: true, autoReschedule: true, calmMode: false,
@@ -53,6 +60,7 @@ function catalogToAchievements(): Achievement[] {
 
 export interface AppState {
   projects: Project[];
+  fixtures: Fixture[];
   schedule: Schedule;
   settings: Settings;
   streak: number;
@@ -77,6 +85,7 @@ export interface AppState {
 /** Persisted slice of the app — mirrored to localStorage and Supabase. */
 export interface Snapshot {
   projects: Project[];
+  fixtures: Fixture[];
   schedule: Schedule;
   settings: Settings;
   streak: number;
@@ -91,6 +100,7 @@ export interface Snapshot {
 export function toSnapshot(state: AppState): Snapshot {
   return {
     projects: state.projects,
+    fixtures: state.fixtures,
     schedule: state.schedule,
     settings: state.settings,
     streak: state.streak,
@@ -133,6 +143,9 @@ export type Action =
   | { type: 'ADD_BRAINDUMP'; text: string }
   | { type: 'DELETE_BRAINDUMP'; id: string }
   | { type: 'CONVERT_BRAINDUMP'; id: string }
+  | { type: 'ADD_FIXTURE'; payload: Omit<Fixture, 'id'> }
+  | { type: 'UPDATE_FIXTURE'; payload: Fixture }
+  | { type: 'DELETE_FIXTURE'; id: string }
   | { type: 'SET_SYNC'; payload: Partial<SyncState> }
   | { type: 'SET_USER'; user: AppUser | null }
   | { type: 'HYDRATE'; snapshot: Partial<Snapshot> }
@@ -160,6 +173,7 @@ function migrateProject(p: Partial<Project>): Project {
     status: p.status ?? (p.done ? 'done' : 'backlog'),
     actualMins: p.actualMins ?? 0,
     note: p.note,
+    fixtureId: p.fixtureId,
   };
 }
 
@@ -183,6 +197,7 @@ function buildInitialState(): AppState {
 
   return {
     projects: rawProjects.map(migrateProject),
+    fixtures: saved.fixtures ?? SEED_FIXTURES,
     schedule: saved.schedule ?? {},
     settings: { ...DEFAULT_SETTINGS, ...saved.settings },
     streak: saved.streak ?? 0,
@@ -420,14 +435,32 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, schedule: replanToday(state, state.projects) };
 
     case 'PLAN_WEEK': {
-      const schedule = planWeek(state.projects, state.settings, state.schedule);
+      const schedule = planWeek(state.projects, state.settings, state.schedule, state.fixtures);
       const prog = applyProgress(state, XP.plan, {});
       return { ...state, schedule, ...prog };
     }
 
     case 'AUTO_RESCHEDULE': {
-      const schedule = autoReschedule(state.schedule, state.projects, state.settings);
+      const schedule = autoReschedule(state.schedule, state.projects, state.settings, state.fixtures);
       return { ...state, schedule, confettiTrigger: state.confettiTrigger + 1 };
+    }
+
+    case 'ADD_FIXTURE': {
+      const fixture: Fixture = { ...action.payload, id: uid() };
+      const fixtures = [...state.fixtures, fixture];
+      return { ...state, fixtures, schedule: replanToday(state, state.projects, fixtures) };
+    }
+
+    case 'UPDATE_FIXTURE': {
+      const fixtures = state.fixtures.map((f) => (f.id === action.payload.id ? action.payload : f));
+      return { ...state, fixtures, schedule: replanToday(state, state.projects, fixtures) };
+    }
+
+    case 'DELETE_FIXTURE': {
+      const fixtures = state.fixtures.filter((f) => f.id !== action.id);
+      // Free any projects that were bound to this container.
+      const projects = state.projects.map((p) => (p.fixtureId === action.id ? { ...p, fixtureId: undefined } : p));
+      return { ...state, fixtures, projects, schedule: replanToday({ ...state, fixtures }, projects, fixtures) };
     }
 
     case 'CHECK_MISSED':
@@ -447,7 +480,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'CLEAR_ALL':
       return {
-        ...state, projects: [], schedule: {}, streak: 0, pom: initialPom(25),
+        ...state, projects: [], fixtures: [], schedule: {}, streak: 0, pom: initialPom(25),
         confettiTrigger: 0, brainDump: [], game: { xp: 0, level: 1 },
         achievements: catalogToAchievements(), stats: { ...DEFAULT_STATS }, toast: null,
       };
@@ -535,6 +568,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         projects,
+        fixtures: s.fixtures ?? state.fixtures,
         schedule: s.schedule ?? state.schedule,
         settings: { ...state.settings, ...s.settings },
         streak: s.streak ?? state.streak,
@@ -567,6 +601,6 @@ export function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-function replanToday(state: AppState, projects: Project[]): Schedule {
-  return { ...state.schedule, [todayKey()]: planDay(todayKey(), projects, state.settings) };
+function replanToday(state: AppState, projects: Project[], fixtures?: Fixture[]): Schedule {
+  return { ...state.schedule, [todayKey()]: planDay(todayKey(), projects, state.settings, fixtures ?? state.fixtures) };
 }

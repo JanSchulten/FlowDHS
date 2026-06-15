@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarRange, Layers, KanbanSquare, Brain, Timer, Settings } from 'lucide-react';
+import { CalendarCheck, CalendarRange, Layers, KanbanSquare, Brain, Timer, Settings, CalendarClock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Toggle } from '../ui/Toggle';
 
@@ -13,6 +13,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { page: 'today', label: 'Tagesplan', icon: CalendarCheck, group: 'Heute' },
   { page: 'week', label: 'Wochenplan', icon: CalendarRange, group: null },
+  { page: 'fixtures', label: 'Fixtermine', icon: CalendarClock, group: null },
   { page: 'board', label: 'Board', icon: KanbanSquare, group: 'Projekte' },
   { page: 'projects', label: 'Alle Projekte', icon: Layers, group: null, badgeKey: 'open' },
   { page: 'inbox', label: 'Brain-Dump', icon: Brain, group: null, badgeKey: 'dump' },

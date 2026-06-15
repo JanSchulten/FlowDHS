@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
   LogIn, LogOut, CloudUpload, CloudDownload, CalendarDays,
-  CalendarPlus, CalendarCheck, RefreshCw,
+  CalendarPlus, CalendarCheck, RefreshCw, Mail,
 } from 'lucide-react';
 import type { AppState, Action } from '../../store/useStore';
 import { toSnapshot } from '../../store/reducer';
-import { signInGoogle, signOut, getGoogleToken } from '../../engine/auth';
+import { signInGoogle, signInEmail, signUpEmail, signOut, getGoogleToken } from '../../engine/auth';
 import { pullState, pushState } from '../../engine/cloud';
 import { importEvents, exportSchedule } from '../../engine/calendar';
 import { Toggle } from '../ui/Toggle';
@@ -19,6 +19,32 @@ interface Props {
 export function AccountPanel({ state, dispatch }: Props) {
   const { user, sync, calendar } = state;
   const [busy, setBusy] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [authMsg, setAuthMsg] = useState('');
+
+  const doEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthMsg('');
+    if (!email.trim() || password.length < 6) {
+      setAuthMsg('Bitte E-Mail und Passwort (mindestens 6 Zeichen) eingeben.');
+      return;
+    }
+    setBusy('email');
+    try {
+      if (mode === 'signup') {
+        const { needsConfirm } = await signUpEmail(email.trim(), password);
+        setAuthMsg(needsConfirm ? 'Fast geschafft – bitte bestätige den Link in deiner E-Mail.' : '');
+      } else {
+        await signInEmail(email.trim(), password);
+      }
+    } catch (err) {
+      setAuthMsg((err as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
 
   const setSync = (status: 'syncing' | 'connected' | 'error' | 'idle', message: string) =>
     dispatch({ type: 'SET_SYNC', payload: { status, message, ...(status === 'connected' ? { lastSync: Date.now() } : {}) } });
@@ -82,13 +108,55 @@ export function AccountPanel({ state, dispatch }: Props) {
       {!user ? (
         <>
           <p style={{ fontSize: 'var(--tx-sm)', color: 'var(--tx2)', marginBottom: '1rem' }}>
-            Melde dich mit Google an: deine Projekte werden dauerhaft in der Cloud
-            (Supabase) gespeichert und du kannst deinen Google-Kalender in beide
-            Richtungen synchronisieren.
+            Melde dich an – deine Projekte werden dauerhaft in der Cloud (Supabase)
+            gespeichert. Mit <strong>Google</strong> kannst du zusätzlich deinen
+            Kalender in beide Richtungen synchronisieren.
           </p>
-          <button className="btn btn-pri" onClick={() => signInGoogle().catch((e) => setSync('error', e.message))} aria-label="Mit Google anmelden">
+
+          <button className="btn btn-pri" onClick={() => signInGoogle().catch((e) => setAuthMsg(e.message))} aria-label="Mit Google anmelden">
             <LogIn size={15} /> Mit Google anmelden
           </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', margin: '1rem 0' }}>
+            <span style={{ flex: 1, height: 1, background: 'var(--bdr)' }} />
+            <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)' }}>oder mit E-Mail</span>
+            <span style={{ flex: 1, height: 1, background: 'var(--bdr)' }} />
+          </div>
+
+          <form onSubmit={doEmailAuth} style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', maxWidth: 380 }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" htmlFor="auth-email">E-Mail</label>
+              <input
+                id="auth-email" className="input" type="email" autoComplete="email"
+                placeholder="du@beispiel.de" value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" htmlFor="auth-pass">Passwort</label>
+              <input
+                id="auth-pass" className="input" type="password"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                placeholder="mindestens 6 Zeichen" value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <button className="btn btn-pri" type="submit" disabled={busy === 'email'} aria-label={mode === 'signin' ? 'Anmelden' : 'Registrieren'}>
+              <Mail size={15} /> {busy === 'email' ? 'Moment…' : mode === 'signin' ? 'Anmelden' : 'Konto erstellen'}
+            </button>
+          </form>
+
+          <button
+            className="btn btn-ghost btn-sm" style={{ marginTop: '.5rem' }}
+            onClick={() => { setMode((m) => (m === 'signin' ? 'signup' : 'signin')); setAuthMsg(''); }}
+            aria-label="Zwischen Anmelden und Registrieren wechseln"
+          >
+            {mode === 'signin' ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden'}
+          </button>
+
+          {authMsg && (
+            <div style={{ marginTop: '.6rem', fontSize: 'var(--tx-xs)', color: 'var(--err)' }}>{authMsg}</div>
+          )}
         </>
       ) : (
         <>
@@ -131,6 +199,11 @@ export function AccountPanel({ state, dispatch }: Props) {
           <div className="form-hint" style={{ marginTop: '.4rem' }}>
             Import legt Termine als Projekte an · Export schreibt die heutigen Fokus-Blöcke als Kalendereinträge (erneutes Ausführen ersetzt sie).
           </div>
+          {!getGoogleToken() && (
+            <div className="form-hint" style={{ color: 'var(--err)' }}>
+              Kalender-Sync benötigt eine Anmeldung mit Google (bei E-Mail-Login nicht verfügbar).
+            </div>
+          )}
         </>
       )}
 

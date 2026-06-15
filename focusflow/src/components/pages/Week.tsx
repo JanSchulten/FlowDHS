@@ -54,11 +54,10 @@ function SlotBlock({ slot, tagColor }: SlotBlockProps) {
     <div
       className={classes}
       style={{ top, height, background: bg, opacity: slot.type === 'break' ? 1 : undefined }}
-      title={`${slot.label} ${slot.start}–${slot.end}`}
+      title={`${slot.label} · ${slot.start}–${slot.end}`}
+      data-label={`${slot.label} · ${slot.start}–${slot.end}`}
     >
-      {height > 30 && (
-        <span className="week-slot-label">{slot.label}</span>
-      )}
+      {slot.type !== 'break' && <span className="week-slot-label">{slot.label}</span>}
     </div>
   );
 }

@@ -33,13 +33,6 @@ function projectTasks(p: Project): TaskItem[] {
   return [{ projectId: p.id, subtaskId: null, label: p.name, dur: Math.min(p.estimateMins ?? 60, 45), tag: p.tag }];
 }
 
-function collectTasks(projects: Project[], overrides: { prepend?: TaskItem[] } = {}): TaskItem[] {
-  const result: TaskItem[] = [];
-  for (const p of sortActive(projects)) result.push(...projectTasks(p));
-  if (overrides.prepend) result.unshift(...overrides.prepend);
-  return result;
-}
-
 /* ── Fixture helpers ── */
 
 const mins = (t: string): number => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -95,9 +88,68 @@ function fixedSlot(f: Fixture): ScheduleSlot {
   };
 }
 
-// Fills a time window [windowStart, windowEnd] with tasks, flowing around busy intervals.
+function taskSlot(t: TaskItem, start: string, end: string): ScheduleSlot {
+  return {
+    id: uid(), type: 'task', projectId: t.projectId, subtaskId: t.subtaskId,
+    label: t.label, start, end, dur: t.dur, done: false, missed: false, tag: t.tag as never,
+  };
+}
+
+/* ── Shared task pools (consumed across days so a week distributes, not duplicates) ── */
+
+interface Pools {
+  work: TaskItem[];
+  priv: TaskItem[];
+  containers: Map<string, TaskItem[]>; // fixtureId → tasks
+}
+
+function buildPools(projects: Project[], settings: Settings, overrides: { prepend?: TaskItem[] } = {}): Pools {
+  const active = sortActive(projects);
+
+  // Tasks bound to a container fixture only ever fill that fixture.
+  const containers = new Map<string, TaskItem[]>();
+  for (const p of active) {
+    if (p.fixtureId) {
+      const arr = containers.get(p.fixtureId) ?? [];
+      arr.push(...projectTasks(p));
+      containers.set(p.fixtureId, arr);
+    }
+  }
+
+  const hasPrivate = !!(settings.privateStart && settings.privateEnd);
+  const free = active.filter((p) => !p.fixtureId);
+  const workProjects = hasPrivate ? free.filter((p) => p.workContext !== 'private') : free;
+  const privProjects = hasPrivate ? free.filter((p) => p.workContext === 'private') : [];
+
+  const work: TaskItem[] = [];
+  for (const p of workProjects) work.push(...projectTasks(p));
+  if (overrides.prepend) work.unshift(...overrides.prepend);
+
+  const priv: TaskItem[] = [];
+  for (const p of privProjects) priv.push(...projectTasks(p));
+
+  return { work, priv, containers };
+}
+
+// Fills a fixed container window back-to-back, consuming from its pool.
+function fillContainer(pool: TaskItem[], start: string, end: string): ScheduleSlot[] {
+  const slots: ScheduleSlot[] = [];
+  let cur = start;
+  while (pool.length > 0) {
+    const t = pool[0];
+    const tEnd = addMins(cur, t.dur);
+    if (timeDiff(tEnd, end) < 0) break; // doesn't fit before the window closes
+    slots.push(taskSlot(t, cur, tEnd));
+    pool.shift();
+    cur = tEnd;
+  }
+  return slots;
+}
+
+// Fills [windowStart, windowEnd] flowing around busy intervals, with breaks and a daily cap.
+// Consumes from `pool`; tasks that don't fit today stay in the pool for the next day.
 function fillWindow(
-  tasks: TaskItem[],
+  pool: TaskItem[],
   windowStart: string,
   windowEnd: string,
   busy: Interval[],
@@ -109,26 +161,24 @@ function fillWindow(
   let cur = windowStart;
   let blockCount = 0;
   let blockStreak = 0;
-  let i = 0;
 
-  while (i < tasks.length && blockCount < maxBlocks) {
+  while (pool.length > 0 && blockCount < maxBlocks) {
     cur = nextFree(cur, busy);
     if (timeDiff(cur, windowEnd) < 10) break;
     const ge = gapEnd(cur, busy, windowEnd);
-    const t = tasks[i];
+    const t = pool[0];
     const end = addMins(cur, t.dur);
 
     if (timeDiff(end, ge) < 0) {
+      // Task doesn't fit in this gap → jump past the blocking fixture and retry.
       if (mins(ge) >= mins(windowEnd)) break;
       cur = ge;
       continue;
     }
 
-    slots.push({
-      id: uid(), type: 'task', projectId: t.projectId, subtaskId: t.subtaskId,
-      label: t.label, start: cur, end, dur: t.dur, done: false, missed: false, tag: t.tag as never,
-    });
-    cur = end; blockCount++; blockStreak++; i++;
+    slots.push(taskSlot(t, cur, end));
+    pool.shift();
+    cur = end; blockCount++; blockStreak++;
 
     if (timeDiff(cur, windowEnd) > 0) {
       const breakDur = blockStreak % 3 === 0 ? breakL : breakS;
@@ -147,73 +197,7 @@ function fillWindow(
   return slots;
 }
 
-export function planDay(
-  dateStr: string,
-  projects: Project[],
-  settings: Settings,
-  fixtures: Fixture[] = [],
-  overrides: { prepend?: TaskItem[] } = {}
-): ScheduleSlot[] {
-  const slots: ScheduleSlot[] = [];
-  const todays = fixturesForDate(fixtures, dateStr);
-  const busy: Interval[] = todays.map((f) => ({ start: f.start, end: f.end }));
-
-  // 1) Render every fixture as a fixed slot.
-  for (const f of todays) slots.push(fixedSlot(f));
-
-  // 2) Fill container fixtures with their assigned projects' tasks.
-  for (const f of todays.filter((x) => x.kind === 'container')) {
-    const assigned = sortActive(projects).filter((p) => p.fixtureId === f.id);
-    let cur = f.start;
-    for (const p of assigned) {
-      for (const t of projectTasks(p)) {
-        const end = addMins(cur, t.dur);
-        if (timeDiff(end, f.end) < 0) break;
-        slots.push({
-          id: uid(), type: 'task', projectId: t.projectId, subtaskId: t.subtaskId,
-          label: t.label, start: cur, end, dur: t.dur, done: false, missed: false, tag: t.tag as never,
-        });
-        cur = end;
-      }
-    }
-  }
-
-  // 3) Split free projects by work context and schedule each in its own window.
-  const containerIds = new Set(todays.filter((f) => f.kind === 'container').map((f) => f.id));
-  const freeProjects = projects.filter((p) => !p.fixtureId || !containerIds.has(p.fixtureId));
-
-  const hasPrivateWindow = !!(settings.privateStart && settings.privateEnd);
-
-  // Work projects → work window; private projects → private window (or fallback to work window).
-  const workProjects = hasPrivateWindow
-    ? freeProjects.filter((p) => p.workContext !== 'private')
-    : freeProjects;
-  const privateProjects = hasPrivateWindow
-    ? freeProjects.filter((p) => p.workContext === 'private')
-    : [];
-
-  // Work time busy = fixtures + private window (so work tasks don't bleed into private time).
-  const privateBusy: Interval[] = hasPrivateWindow
-    ? [{ start: settings.privateStart!, end: settings.privateEnd! }]
-    : [];
-  const workBusy = [...busy, ...privateBusy];
-
-  const workTasks = collectTasks(workProjects, overrides);
-  const workSlots = fillWindow(workTasks, settings.start, settings.end, workBusy, settings.maxBlocks, settings.breakS, settings.breakL);
-  slots.push(...workSlots);
-
-  // Private window: busy = fixtures + all just-scheduled work slots.
-  if (hasPrivateWindow && privateProjects.length > 0) {
-    const scheduledBusy = workSlots.map((s) => ({ start: s.start, end: s.end }));
-    const privateTasks = collectTasks(privateProjects);
-    const pvSlots = fillWindow(
-      privateTasks, settings.privateStart!, settings.privateEnd!,
-      [...busy, ...scheduledBusy], settings.maxBlocks, settings.breakS, settings.breakL,
-    );
-    slots.push(...pvSlots);
-  }
-
-  // Single timeline, ordered by start; fixed bands win ties so they read as headers.
+function sortTimeline(slots: ScheduleSlot[]): ScheduleSlot[] {
   return slots.sort((a, b) => {
     const d = mins(a.start) - mins(b.start);
     if (d !== 0) return d;
@@ -223,19 +207,70 @@ export function planDay(
   });
 }
 
+// Plans a single day, consuming from shared pools (so callers can spread a week).
+function planDayInto(dateStr: string, settings: Settings, fixtures: Fixture[], pools: Pools): ScheduleSlot[] {
+  const slots: ScheduleSlot[] = [];
+  const todays = fixturesForDate(fixtures, dateStr);
+  const busy: Interval[] = todays.map((f) => ({ start: f.start, end: f.end }));
+
+  // 1) Render every fixture as a fixed band.
+  for (const f of todays) slots.push(fixedSlot(f));
+
+  // 2) Fill container fixtures from their dedicated pools.
+  for (const f of todays.filter((x) => x.kind === 'container')) {
+    const pool = pools.containers.get(f.id);
+    if (pool && pool.length) slots.push(...fillContainer(pool, f.start, f.end));
+  }
+
+  // 3) Work window (free work projects), avoiding fixtures + private time.
+  const hasPrivate = !!(settings.privateStart && settings.privateEnd);
+  const privBusy: Interval[] = hasPrivate ? [{ start: settings.privateStart!, end: settings.privateEnd! }] : [];
+  const workSlots = fillWindow(
+    pools.work, settings.start, settings.end,
+    [...busy, ...privBusy], settings.maxBlocks, settings.breakS, settings.breakL,
+  );
+  slots.push(...workSlots);
+
+  // 4) Private window (free private projects), avoiding fixtures + already-placed work.
+  if (hasPrivate && pools.priv.length) {
+    const scheduledBusy = workSlots.map((s) => ({ start: s.start, end: s.end }));
+    const pvSlots = fillWindow(
+      pools.priv, settings.privateStart!, settings.privateEnd!,
+      [...busy, ...scheduledBusy], settings.maxBlocks, settings.breakS, settings.breakL,
+    );
+    slots.push(...pvSlots);
+  }
+
+  return sortTimeline(slots);
+}
+
+export function planDay(
+  dateStr: string,
+  projects: Project[],
+  settings: Settings,
+  fixtures: Fixture[] = [],
+  overrides: { prepend?: TaskItem[] } = {}
+): ScheduleSlot[] {
+  const pools = buildPools(projects, settings, overrides);
+  return planDayInto(dateStr, settings, fixtures, pools);
+}
+
 export function planWeek(
   projects: Project[],
   settings: Settings,
   existingSchedule: Schedule,
   fixtures: Fixture[] = []
 ): Schedule {
+  // One shared pool for the whole week → tasks spread across days (weekdays first),
+  // instead of being duplicated identically onto every day.
+  const pools = buildPools(projects, settings);
   const now = new Date();
   const next: Schedule = { ...existingSchedule };
   for (let i = 0; i < 7; i++) {
     const d = new Date(now);
     d.setDate(d.getDate() + i);
     const dk = dateKey(d);
-    next[dk] = planDay(dk, projects, settings, fixtures);
+    next[dk] = planDayInto(dk, settings, fixtures, pools);
   }
   return next;
 }

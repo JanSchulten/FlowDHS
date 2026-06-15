@@ -594,12 +594,28 @@ a { color: var(--pri); }
 .week-hour-stripe { position: absolute; left: 0; right: 0; height: 64px;
   border-top: 1px solid var(--div); pointer-events: none; }
 .week-slot { position: absolute; left: 2px; right: 2px; border-radius: var(--r-sm);
-  overflow: hidden; padding: 2px 4px; font-size: 10px; line-height: 1.3; cursor: default;
-  transition: filter var(--ease); pointer-events: auto; }
-.week-slot:hover { filter: brightness(1.1); }
+  overflow: hidden; padding: 1px 4px; font-size: 10px; line-height: 1.2; cursor: default;
+  transition: filter var(--ease), box-shadow var(--ease); pointer-events: auto; color: #fff; }
+.week-slot-fixed { color: var(--tx); }
+.week-slot:hover { filter: brightness(1.08); overflow: visible; z-index: 20; box-shadow: var(--sh2); }
 .week-slot.done { opacity: .5; text-decoration: line-through; }
 .week-slot.missed { outline: 1.5px dashed var(--err); }
-.week-slot-label { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
+.week-slot-label {
+  font-weight: 700; display: block;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+/* Hover tooltip — always reveals the full card name regardless of tile size */
+.week-slot:hover::after {
+  content: attr(data-label);
+  position: absolute; left: 50%; bottom: calc(100% + 5px); transform: translateX(-50%);
+  white-space: normal; width: max-content; max-width: 200px;
+  background: var(--surf); color: var(--tx);
+  border: 1px solid var(--bdr2); border-radius: var(--r-md);
+  padding: .35rem .55rem; font-size: 11px; font-weight: 600; line-height: 1.35;
+  box-shadow: var(--sh3); z-index: 50; pointer-events: none; text-align: center;
+}
 .week-now-line { position: absolute; left: 0; right: 0; height: 2px;
   background: var(--err, #f87171); z-index: 3; pointer-events: none; }
 .week-now-dot { position: absolute; left: -3px; top: -4px;

@@ -34,6 +34,18 @@ export async function signInGoogle(): Promise<void> {
   if (error) throw error;
 }
 
+export async function signInEmail(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+/** Returns needsConfirm=true when Supabase requires e-mail confirmation first. */
+export async function signUpEmail(email: string, password: string): Promise<{ needsConfirm: boolean }> {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) throw error;
+  return { needsConfirm: !data.session };
+}
+
 export async function signOut(): Promise<void> {
   clearGoogleToken();
   await supabase.auth.signOut();

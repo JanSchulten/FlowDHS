@@ -13,7 +13,7 @@ const SEED_PROJECTS: Project[] = [
   {
     id: 'seed1', name: 'Dissertation Kapitel 3', deadline: '2026-06-30',
     weekBudgetH: 6, estimateMins: 480, priority: 'high', tag: 'focus', done: false,
-    status: 'today', actualMins: 0, createdAt: 0,
+    status: 'today', actualMins: 0, createdAt: 0, workContext: 'work',
     subtasks: [
       { id: 's1', name: 'Literaturrecherche abschließen', dur: 45, done: false },
       { id: 's2', name: 'Gliederung erstellen', dur: 25, done: false },
@@ -23,7 +23,7 @@ const SEED_PROJECTS: Project[] = [
   {
     id: 'seed2', name: 'Unity XR-Shader fertigstellen', deadline: '2026-06-20',
     weekBudgetH: 4, estimateMins: 180, priority: 'high', tag: 'creative', done: false,
-    status: 'doing', actualMins: 0, createdAt: 0,
+    status: 'doing', actualMins: 0, createdAt: 0, workContext: 'private',
     subtasks: [
       { id: 's4', name: 'Vertex-Shader debuggen', dur: 25, done: false },
       { id: 's5', name: 'Bloom-Effekt implementieren', dur: 45, done: false },
@@ -32,7 +32,7 @@ const SEED_PROJECTS: Project[] = [
   {
     id: 'seed3', name: 'n8n Podcast-Automation', deadline: null,
     weekBudgetH: 2, estimateMins: 120, priority: 'med', tag: 'admin', done: false,
-    status: 'backlog', actualMins: 0, createdAt: 0, subtasks: [],
+    status: 'backlog', actualMins: 0, createdAt: 0, subtasks: [], workContext: 'work',
   },
 ];
 

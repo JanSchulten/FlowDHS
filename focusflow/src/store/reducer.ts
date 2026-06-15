@@ -1,63 +1,55 @@
-import type { Project, Schedule, Settings, Subtask, PomState } from '../types';
+import type {
+  Project, Schedule, Settings, Subtask, PomState, BrainDumpItem,
+  Gamification, Achievement, Stats, GoogleConfig, SyncState, Toast, BoardStatus,
+} from '../types';
 import { uid, todayKey } from '../engine/utils';
 import { planDay, planWeek, checkMissed, autoReschedule } from '../engine/planner';
+import {
+  XP, levelFromXp, ACHIEVEMENT_CATALOG, evaluateAchievements, levelTitle,
+} from '../engine/gamification';
 
 const SEED_PROJECTS: Project[] = [
   {
-    id: 'seed1',
-    name: 'Dissertation Kapitel 3',
-    deadline: '2026-06-30',
-    weekBudgetH: 6,
-    estimateMins: 480,
-    priority: 'high',
-    tag: 'focus',
-    done: false,
+    id: 'seed1', name: 'Dissertation Kapitel 3', deadline: '2026-06-30',
+    weekBudgetH: 6, estimateMins: 480, priority: 'high', tag: 'focus', done: false,
+    status: 'today', actualMins: 0, createdAt: 0,
     subtasks: [
       { id: 's1', name: 'Literaturrecherche abschließen', dur: 45, done: false },
       { id: 's2', name: 'Gliederung erstellen', dur: 25, done: false },
       { id: 's3', name: 'Abschnitt 3.1 schreiben', dur: 45, done: false },
     ],
-    createdAt: 0,
   },
   {
-    id: 'seed2',
-    name: 'Unity XR-Shader fertigstellen',
-    deadline: '2026-06-20',
-    weekBudgetH: 4,
-    estimateMins: 180,
-    priority: 'high',
-    tag: 'creative',
-    done: false,
+    id: 'seed2', name: 'Unity XR-Shader fertigstellen', deadline: '2026-06-20',
+    weekBudgetH: 4, estimateMins: 180, priority: 'high', tag: 'creative', done: false,
+    status: 'doing', actualMins: 0, createdAt: 0,
     subtasks: [
       { id: 's4', name: 'Vertex-Shader debuggen', dur: 25, done: false },
       { id: 's5', name: 'Bloom-Effekt implementieren', dur: 45, done: false },
     ],
-    createdAt: 0,
   },
   {
-    id: 'seed3',
-    name: 'n8n Podcast-Automation',
-    deadline: null,
-    weekBudgetH: 2,
-    estimateMins: 120,
-    priority: 'med',
-    tag: 'admin',
-    done: false,
-    subtasks: [],
-    createdAt: 0,
+    id: 'seed3', name: 'n8n Podcast-Automation', deadline: null,
+    weekBudgetH: 2, estimateMins: 120, priority: 'med', tag: 'admin', done: false,
+    status: 'backlog', actualMins: 0, createdAt: 0, subtasks: [],
   },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
-  start: '08:00',
-  end: '19:00',
-  maxBlocks: 4,
-  breakS: 10,
-  breakL: 30,
-  sound: true,
-  confetti: true,
-  autoReschedule: true,
+  start: '08:00', end: '19:00', maxBlocks: 4, breakS: 10, breakL: 30,
+  sound: true, confetti: true, autoReschedule: true, calmMode: false,
 };
+
+const DEFAULT_STATS: Stats = {
+  projectsDone: 0, subtasksDone: 0, pomodoros: 0, brainDumps: 0, focusMins: 0, breakdowns: 0,
+};
+
+const DEFAULT_GOOGLE: GoogleConfig = { clientId: '', sheetUrl: '', autoPush: false };
+const DEFAULT_SYNC: SyncState = { status: 'idle', message: '', lastSync: null };
+
+function catalogToAchievements(): Achievement[] {
+  return ACHIEVEMENT_CATALOG.map((a) => ({ ...a, unlockedAt: null }));
+}
 
 export interface AppState {
   projects: Project[];
@@ -69,6 +61,15 @@ export interface AppState {
   activePage: string;
   projectFilter: 'all' | 'active' | 'urgent' | 'done';
   confettiTrigger: number;
+  brainDump: BrainDumpItem[];
+  game: Gamification;
+  achievements: Achievement[];
+  stats: Stats;
+  google: GoogleConfig;
+  sync: SyncState;
+  toast: Toast | null;
+  commandOpen: boolean;
+  onboardingDone: boolean;
 }
 
 export type Action =
@@ -76,7 +77,9 @@ export type Action =
   | { type: 'UPDATE_PROJECT'; payload: Project }
   | { type: 'DELETE_PROJECT'; id: string }
   | { type: 'COMPLETE_PROJECT'; id: string }
+  | { type: 'SET_PROJECT_STATUS'; id: string; status: BoardStatus }
   | { type: 'ADD_SUBTASK'; projectId: string; subtask: Omit<Subtask, 'id'> }
+  | { type: 'ADD_SUBTASKS_BULK'; projectId: string; subtasks: Omit<Subtask, 'id'>[] }
   | { type: 'TOGGLE_SUBTASK'; projectId: string; subtaskId: string }
   | { type: 'DELETE_SUBTASK'; projectId: string; subtaskId: string }
   | { type: 'TOGGLE_SLOT'; slotId: string }
@@ -94,10 +97,38 @@ export type Action =
   | { type: 'POM_TOGGLE' }
   | { type: 'POM_RESET' }
   | { type: 'POM_SET_DUR'; dur: number }
-  | { type: 'POM_FINISH_ROUND' };
+  | { type: 'POM_SET_PROJECT'; projectId: string | null }
+  | { type: 'POM_FINISH_ROUND' }
+  | { type: 'ADD_BRAINDUMP'; text: string }
+  | { type: 'DELETE_BRAINDUMP'; id: string }
+  | { type: 'CONVERT_BRAINDUMP'; id: string }
+  | { type: 'SET_GOOGLE_CONFIG'; payload: Partial<GoogleConfig> }
+  | { type: 'SET_SYNC'; payload: Partial<SyncState> }
+  | { type: 'REPLACE_PROJECTS'; projects: Project[] }
+  | { type: 'DISMISS_TOAST' }
+  | { type: 'TOGGLE_COMMAND'; open?: boolean }
+  | { type: 'COMPLETE_ONBOARDING' };
 
 function initialPom(dur = 25): PomState {
-  return { running: false, secs: dur * 60, total: dur * 60, rounds: 0, isBreak: false, dur };
+  return { running: false, secs: dur * 60, total: dur * 60, rounds: 0, isBreak: false, dur, projectId: null };
+}
+
+function migrateProject(p: Partial<Project>): Project {
+  return {
+    id: p.id ?? uid(),
+    name: p.name ?? '',
+    deadline: p.deadline ?? null,
+    weekBudgetH: p.weekBudgetH ?? 2,
+    estimateMins: p.estimateMins ?? 60,
+    priority: p.priority ?? 'med',
+    tag: p.tag ?? 'focus',
+    done: p.done ?? false,
+    subtasks: p.subtasks ?? [],
+    createdAt: p.createdAt ?? Date.now(),
+    status: p.status ?? (p.done ? 'done' : 'backlog'),
+    actualMins: p.actualMins ?? 0,
+    note: p.note,
+  };
 }
 
 function loadFromStorage(): Partial<AppState> {
@@ -110,10 +141,16 @@ function loadFromStorage(): Partial<AppState> {
 
 function buildInitialState(): AppState {
   const saved = loadFromStorage();
-  const isFirstRun = !saved.projects;
+  const rawProjects = saved.projects ?? SEED_PROJECTS;
+
+  // Merge achievement catalog with any saved unlock timestamps.
+  const savedAch = new Map((saved.achievements ?? []).map((a) => [a.id, a.unlockedAt]));
+  const achievements = catalogToAchievements().map((a) => ({
+    ...a, unlockedAt: savedAch.get(a.id) ?? null,
+  }));
 
   return {
-    projects: saved.projects ?? SEED_PROJECTS,
+    projects: rawProjects.map(migrateProject),
     schedule: saved.schedule ?? {},
     settings: { ...DEFAULT_SETTINGS, ...saved.settings },
     streak: saved.streak ?? 0,
@@ -122,113 +159,156 @@ function buildInitialState(): AppState {
     activePage: 'today',
     projectFilter: 'all',
     confettiTrigger: 0,
-    ...(!isFirstRun ? {} : {}),
+    brainDump: saved.brainDump ?? [],
+    game: saved.game ?? { xp: 0, level: 1 },
+    achievements,
+    stats: { ...DEFAULT_STATS, ...saved.stats },
+    google: { ...DEFAULT_GOOGLE, ...saved.google },
+    sync: DEFAULT_SYNC,
+    toast: null,
+    commandOpen: false,
+    onboardingDone: saved.onboardingDone ?? false,
   };
 }
 
 export const INITIAL_STATE: AppState = buildInitialState();
 
-function syncScheduleSlot(
-  _projects: Project[],
-  schedule: Schedule,
-  slotId: string,
-  done: boolean
-): Schedule {
-  const key = todayKey();
-  const slots = (schedule[key] ?? []).map((s) => {
-    if (s.id !== slotId) return s;
-    const updated = { ...s, done, ...(done ? { missed: false } : {}) };
-    return updated;
-  });
-  return { ...schedule, [key]: slots };
+/* ── Progress helper: XP + level-ups + achievement unlocks + toast + confetti ── */
+interface ProgressResult {
+  game: Gamification;
+  stats: Stats;
+  achievements: Achievement[];
+  toast: Toast | null;
+  confettiTrigger: number;
+}
+
+function applyProgress(
+  state: AppState,
+  xpGain: number,
+  statPatch: Partial<Stats>,
+  streakOverride?: number
+): ProgressResult {
+  const stats: Stats = { ...state.stats };
+  for (const k of Object.keys(statPatch) as (keyof Stats)[]) {
+    stats[k] = (stats[k] ?? 0) + (statPatch[k] ?? 0);
+  }
+
+  const xp = state.game.xp + xpGain;
+  const { level } = levelFromXp(xp);
+  const leveledUp = level > state.game.level;
+  const game: Gamification = { xp, level };
+
+  const streak = streakOverride ?? state.streak;
+  const shouldBe = evaluateAchievements(stats, level, streak, stats.breakdowns > 0);
+  const achievements = state.achievements.map((a) =>
+    a.unlockedAt == null && shouldBe.includes(a.id)
+      ? { ...a, unlockedAt: Date.now() }
+      : a
+  );
+
+  const newlyUnlocked = achievements.find(
+    (a, i) => a.unlockedAt != null && state.achievements[i].unlockedAt == null
+  );
+
+  let toast: Toast | null = state.toast;
+  let confettiTrigger = state.confettiTrigger;
+
+  if (newlyUnlocked) {
+    toast = { id: uid(), title: newlyUnlocked.name, desc: newlyUnlocked.desc, icon: newlyUnlocked.icon };
+    confettiTrigger++;
+  } else if (leveledUp) {
+    toast = { id: uid(), title: `Level ${level} – ${levelTitle(level)}`, desc: 'Du steigst auf! 🎉', icon: '🌟' };
+    confettiTrigger++;
+  }
+
+  return { game, stats, achievements, toast, confettiTrigger };
 }
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'ADD_PROJECT': {
-      const project: Project = { ...action.payload, id: uid(), createdAt: Date.now() };
+      const project = migrateProject({ ...action.payload, id: uid(), createdAt: Date.now() });
       const projects = [...state.projects, project];
-      const schedule = {
-        ...state.schedule,
-        [todayKey()]: planDay(todayKey(), projects, state.settings),
-      };
-      return { ...state, projects, schedule };
+      return { ...state, projects, schedule: replanToday(state, projects) };
     }
 
     case 'UPDATE_PROJECT': {
-      const projects = state.projects.map((p) =>
-        p.id === action.payload.id ? action.payload : p
-      );
-      const schedule = {
-        ...state.schedule,
-        [todayKey()]: planDay(todayKey(), projects, state.settings),
-      };
-      return { ...state, projects, schedule };
+      const projects = state.projects.map((p) => (p.id === action.payload.id ? action.payload : p));
+      return { ...state, projects, schedule: replanToday(state, projects) };
     }
 
     case 'DELETE_PROJECT': {
       const projects = state.projects.filter((p) => p.id !== action.id);
-      const schedule = {
-        ...state.schedule,
-        [todayKey()]: planDay(todayKey(), projects, state.settings),
-      };
-      return { ...state, projects, schedule };
+      return { ...state, projects, schedule: replanToday(state, projects) };
     }
 
-    case 'COMPLETE_PROJECT': {
-      const projects = state.projects.map((p) =>
-        p.id === action.id ? { ...p, done: !p.done } : p
-      );
-      const wasCompleted = projects.find((p) => p.id === action.id)?.done;
-      const streak = wasCompleted ? state.streak + 1 : state.streak;
-      const confettiTrigger = wasCompleted ? state.confettiTrigger + 1 : state.confettiTrigger;
-      return { ...state, projects, streak, confettiTrigger };
+    case 'SET_PROJECT_STATUS': {
+      const projects = state.projects.map((p) => {
+        if (p.id !== action.id) return p;
+        return { ...p, status: action.status, done: action.status === 'done' };
+      });
+      const moved = projects.find((p) => p.id === action.id);
+      // Completing via board column awards project XP.
+      if (action.status === 'done' && moved && !state.projects.find((x) => x.id === action.id)?.done) {
+        const prog = applyProgress(state, XP.project, { projectsDone: 1 }, state.streak + 1);
+        return { ...state, projects, streak: state.streak + 1, ...prog, schedule: replanToday(state, projects) };
+      }
+      return { ...state, projects, schedule: replanToday(state, projects) };
     }
 
     case 'ADD_SUBTASK': {
       const subtask: Subtask = { ...action.subtask, id: uid() };
       const projects = state.projects.map((p) =>
-        p.id === action.projectId
-          ? { ...p, subtasks: [...p.subtasks, subtask] }
-          : p
+        p.id === action.projectId ? { ...p, subtasks: [...p.subtasks, subtask] } : p
       );
-      const schedule = {
-        ...state.schedule,
-        [todayKey()]: planDay(todayKey(), projects, state.settings),
-      };
-      return { ...state, projects, schedule };
+      return { ...state, projects, schedule: replanToday(state, projects) };
+    }
+
+    case 'ADD_SUBTASKS_BULK': {
+      const additions: Subtask[] = action.subtasks.map((s) => ({ ...s, id: uid() }));
+      const projects = state.projects.map((p) =>
+        p.id === action.projectId ? { ...p, subtasks: [...p.subtasks, ...additions] } : p
+      );
+      const prog = applyProgress(state, XP.breakdown, { breakdowns: 1 });
+      return { ...state, projects, ...prog, schedule: replanToday(state, projects) };
     }
 
     case 'TOGGLE_SUBTASK': {
-      let confettiTrigger = state.confettiTrigger;
-      let streak = state.streak;
+      const prev = state.projects.find((p) => p.id === action.projectId)
+        ?.subtasks.find((s) => s.id === action.subtaskId);
+      const willBeDone = prev ? !prev.done : false;
+
+      let projectCompleted = false;
       const projects = state.projects.map((p) => {
         if (p.id !== action.projectId) return p;
         const subtasks = p.subtasks.map((s) =>
           s.id === action.subtaskId ? { ...s, done: !s.done } : s
         );
         const allDone = subtasks.length > 0 && subtasks.every((s) => s.done);
-        if (allDone && !p.done) { streak++; confettiTrigger++; }
-        return { ...p, subtasks, done: allDone ? true : p.done };
+        if (allDone && !p.done) projectCompleted = true;
+        return {
+          ...p, subtasks,
+          done: allDone ? true : p.done,
+          status: allDone ? ('done' as BoardStatus) : p.status,
+        };
       });
 
-      // Sync schedule slot
       const key = todayKey();
-      const slots = (state.schedule[key] ?? []).map((s) => {
-        if (s.subtaskId !== action.subtaskId) return s;
-        const st = projects
-          .find((p) => p.id === action.projectId)
-          ?.subtasks.find((x) => x.id === action.subtaskId);
-        return { ...s, done: st?.done ?? s.done };
-      });
+      const slots = (state.schedule[key] ?? []).map((s) =>
+        s.subtaskId === action.subtaskId ? { ...s, done: willBeDone } : s
+      );
 
-      return {
-        ...state,
-        projects,
-        streak,
-        confettiTrigger,
-        schedule: { ...state.schedule, [key]: slots },
-      };
+      if (willBeDone) {
+        const xpGain = XP.subtask + (projectCompleted ? XP.project : 0);
+        const statPatch: Partial<Stats> = {
+          subtasksDone: 1, ...(projectCompleted ? { projectsDone: 1 } : {}),
+        };
+        const newStreak = state.streak + 1;
+        const prog = applyProgress(state, xpGain, statPatch, newStreak);
+        return { ...state, projects, streak: newStreak, ...prog, schedule: { ...state.schedule, [key]: slots } };
+      }
+
+      return { ...state, projects, schedule: { ...state.schedule, [key]: slots } };
     }
 
     case 'DELETE_SUBTASK': {
@@ -240,91 +320,91 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, projects };
     }
 
+    case 'COMPLETE_PROJECT': {
+      const target = state.projects.find((p) => p.id === action.id);
+      const willBeDone = target ? !target.done : false;
+      const projects = state.projects.map((p) =>
+        p.id === action.id
+          ? { ...p, done: willBeDone, status: willBeDone ? ('done' as BoardStatus) : ('today' as BoardStatus) }
+          : p
+      );
+      if (willBeDone) {
+        const newStreak = state.streak + 1;
+        const prog = applyProgress(state, XP.project, { projectsDone: 1 }, newStreak);
+        return { ...state, projects, streak: newStreak, ...prog };
+      }
+      return { ...state, projects };
+    }
+
     case 'TOGGLE_SLOT': {
       const key = todayKey();
       const slot = (state.schedule[key] ?? []).find((s) => s.id === action.slotId);
       if (!slot) return state;
       const done = !slot.done;
-      const schedule = syncScheduleSlot(state.projects, state.schedule, action.slotId, done);
+      const slots = (state.schedule[key] ?? []).map((s) =>
+        s.id === action.slotId ? { ...s, done, ...(done ? { missed: false } : {}) } : s
+      );
 
-      // Sync subtask
       let projects = state.projects;
       if (slot.subtaskId) {
-        projects = state.projects.map((p) => {
-          if (p.id !== slot.projectId) return p;
-          return {
-            ...p,
-            subtasks: p.subtasks.map((s) =>
-              s.id === slot.subtaskId ? { ...s, done } : s
-            ),
-          };
-        });
+        projects = state.projects.map((p) =>
+          p.id !== slot.projectId ? p : {
+            ...p, subtasks: p.subtasks.map((s) => (s.id === slot.subtaskId ? { ...s, done } : s)),
+          }
+        );
       }
 
-      const confettiTrigger = done ? state.confettiTrigger + 1 : state.confettiTrigger;
-      const streak = done ? state.streak + 1 : state.streak;
-      return { ...state, schedule, projects, confettiTrigger, streak };
+      if (done) {
+        const newStreak = state.streak + 1;
+        const prog = applyProgress(state, XP.subtask, { subtasksDone: 1, focusMins: slot.dur }, newStreak);
+        return { ...state, projects, streak: newStreak, ...prog, schedule: { ...state.schedule, [key]: slots } };
+      }
+      return { ...state, projects, schedule: { ...state.schedule, [key]: slots } };
     }
 
     case 'RESCHEDULE_SLOT': {
       const key = todayKey();
       const slot = (state.schedule[key] ?? []).find((s) => s.id === action.slotId);
       if (!slot) return state;
-
       const todaySlots = (state.schedule[key] ?? []).map((s) =>
         s.id === action.slotId ? { ...s, missed: false, done: false } : s
       );
       let schedule: Schedule = { ...state.schedule, [key]: todaySlots };
-
       const now = new Date();
       for (let i = 1; i <= 7; i++) {
-        const d = new Date(now);
-        d.setDate(d.getDate() + i);
+        const d = new Date(now); d.setDate(d.getDate() + i);
         const dk = d.toISOString().slice(0, 10);
         const existing = (schedule[dk] ?? []).filter((s) => s.type === 'task');
         if (existing.length < state.settings.maxBlocks) {
-          schedule = {
-            ...schedule,
-            [dk]: [...(schedule[dk] ?? []), { ...slot, id: uid(), missed: false, done: false }],
-          };
+          schedule = { ...schedule, [dk]: [...(schedule[dk] ?? []), { ...slot, id: uid(), missed: false, done: false }] };
           break;
         }
       }
-
       return { ...state, schedule };
     }
 
-    case 'PLAN_TODAY': {
-      const schedule = {
-        ...state.schedule,
-        [todayKey()]: planDay(todayKey(), state.projects, state.settings),
-      };
-      return { ...state, schedule };
-    }
+    case 'PLAN_TODAY':
+      return { ...state, schedule: replanToday(state, state.projects) };
 
     case 'PLAN_WEEK': {
       const schedule = planWeek(state.projects, state.settings, state.schedule);
-      return { ...state, schedule };
+      const prog = applyProgress(state, XP.plan, {});
+      return { ...state, schedule, ...prog };
     }
 
     case 'AUTO_RESCHEDULE': {
       const schedule = autoReschedule(state.schedule, state.projects, state.settings);
-      const confettiTrigger = state.confettiTrigger + 1;
-      return { ...state, schedule, confettiTrigger };
+      return { ...state, schedule, confettiTrigger: state.confettiTrigger + 1 };
     }
 
-    case 'CHECK_MISSED': {
-      const schedule = checkMissed(state.schedule);
-      return { ...state, schedule };
-    }
+    case 'CHECK_MISSED':
+      return { ...state, schedule: checkMissed(state.schedule) };
 
-    case 'UPDATE_SETTINGS': {
-      const settings = { ...state.settings, ...action.payload };
-      return { ...state, settings };
-    }
+    case 'UPDATE_SETTINGS':
+      return { ...state, settings: { ...state.settings, ...action.payload } };
 
     case 'SET_PAGE':
-      return { ...state, activePage: action.page };
+      return { ...state, activePage: action.page, commandOpen: false };
 
     case 'SET_FILTER':
       return { ...state, projectFilter: action.filter };
@@ -334,76 +414,107 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'CLEAR_ALL':
       return {
-        ...state,
-        projects: [],
-        schedule: {},
-        streak: 0,
-        pom: initialPom(25),
-        confettiTrigger: 0,
+        ...state, projects: [], schedule: {}, streak: 0, pom: initialPom(25),
+        confettiTrigger: 0, brainDump: [], game: { xp: 0, level: 1 },
+        achievements: catalogToAchievements(), stats: { ...DEFAULT_STATS }, toast: null,
       };
 
     case 'POM_TOGGLE':
       return { ...state, pom: { ...state.pom, running: !state.pom.running } };
 
-    case 'POM_TICK': {
-      if (!state.pom.running) return state;
-      if (state.pom.secs <= 0) return state;
+    case 'POM_TICK':
+      if (!state.pom.running || state.pom.secs <= 0) return state;
       return { ...state, pom: { ...state.pom, secs: state.pom.secs - 1 } };
-    }
 
     case 'POM_FINISH_ROUND': {
-      const wasBreak = state.pom.isBreak;
-      if (!wasBreak) {
+      if (!state.pom.isBreak) {
         const pom: PomState = {
-          ...state.pom,
-          running: false,
-          rounds: state.pom.rounds + 1,
-          isBreak: true,
-          secs: 5 * 60,
-          total: 5 * 60,
+          ...state.pom, running: false, rounds: state.pom.rounds + 1,
+          isBreak: true, secs: 5 * 60, total: 5 * 60,
         };
-        return {
-          ...state,
-          pom,
-          streak: state.streak + 1,
-          confettiTrigger: state.confettiTrigger + 1,
-        };
-      } else {
-        const pom: PomState = {
-          ...state.pom,
-          running: false,
-          isBreak: false,
-          secs: state.pom.dur * 60,
-          total: state.pom.dur * 60,
-        };
-        return { ...state, pom };
+        // Attribute focused minutes to the chosen project (time-blindness aid).
+        const projects = state.pom.projectId
+          ? state.projects.map((p) =>
+              p.id === state.pom.projectId ? { ...p, actualMins: p.actualMins + state.pom.dur } : p
+            )
+          : state.projects;
+        const newStreak = state.streak + 1;
+        const prog = applyProgress(state, XP.pomodoro, { pomodoros: 1, focusMins: state.pom.dur }, newStreak);
+        return { ...state, pom, projects, streak: newStreak, ...prog };
       }
-    }
-
-    case 'POM_RESET': {
       const pom: PomState = {
-        ...state.pom,
-        running: false,
-        isBreak: false,
-        secs: state.pom.dur * 60,
-        total: state.pom.dur * 60,
+        ...state.pom, running: false, isBreak: false,
+        secs: state.pom.dur * 60, total: state.pom.dur * 60,
       };
       return { ...state, pom };
     }
 
-    case 'POM_SET_DUR': {
-      const pom: PomState = {
-        ...state.pom,
-        dur: action.dur,
-        running: false,
-        isBreak: false,
-        secs: action.dur * 60,
-        total: action.dur * 60,
+    case 'POM_RESET':
+      return {
+        ...state,
+        pom: { ...state.pom, running: false, isBreak: false, secs: state.pom.dur * 60, total: state.pom.dur * 60 },
       };
-      return { ...state, pom };
+
+    case 'POM_SET_DUR':
+      return {
+        ...state,
+        pom: { ...state.pom, dur: action.dur, running: false, isBreak: false, secs: action.dur * 60, total: action.dur * 60 },
+      };
+
+    case 'POM_SET_PROJECT':
+      return { ...state, pom: { ...state.pom, projectId: action.projectId } };
+
+    case 'ADD_BRAINDUMP': {
+      const text = action.text.trim();
+      if (!text) return state;
+      const item: BrainDumpItem = { id: uid(), text, createdAt: Date.now() };
+      const prog = applyProgress(state, XP.brainDump, { brainDumps: 1 });
+      return { ...state, brainDump: [item, ...state.brainDump], ...prog };
     }
+
+    case 'DELETE_BRAINDUMP':
+      return { ...state, brainDump: state.brainDump.filter((b) => b.id !== action.id) };
+
+    case 'CONVERT_BRAINDUMP': {
+      const item = state.brainDump.find((b) => b.id === action.id);
+      if (!item) return state;
+      const project = migrateProject({
+        id: uid(), name: item.text, priority: 'med', tag: 'focus',
+        weekBudgetH: 2, estimateMins: 60, status: 'backlog', createdAt: Date.now(),
+      });
+      const projects = [...state.projects, project];
+      return {
+        ...state, projects,
+        brainDump: state.brainDump.filter((b) => b.id !== action.id),
+        schedule: replanToday(state, projects),
+      };
+    }
+
+    case 'SET_GOOGLE_CONFIG':
+      return { ...state, google: { ...state.google, ...action.payload } };
+
+    case 'SET_SYNC':
+      return { ...state, sync: { ...state.sync, ...action.payload } };
+
+    case 'REPLACE_PROJECTS': {
+      const projects = action.projects.map(migrateProject);
+      return { ...state, projects, schedule: replanToday(state, projects) };
+    }
+
+    case 'DISMISS_TOAST':
+      return { ...state, toast: null };
+
+    case 'TOGGLE_COMMAND':
+      return { ...state, commandOpen: action.open ?? !state.commandOpen };
+
+    case 'COMPLETE_ONBOARDING':
+      return { ...state, onboardingDone: true };
 
     default:
       return state;
   }
+}
+
+function replanToday(state: AppState, projects: Project[]): Schedule {
+  return { ...state.schedule, [todayKey()]: planDay(todayKey(), projects, state.settings) };
 }

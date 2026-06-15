@@ -8,6 +8,9 @@ export interface Subtask {
 export type Priority = 'high' | 'med' | 'low';
 export type Tag = 'focus' | 'creative' | 'energy' | 'admin';
 
+/** Kanban / board column the project currently lives in. */
+export type BoardStatus = 'backlog' | 'today' | 'doing' | 'done';
+
 export interface Project {
   id: string;
   name: string;
@@ -19,6 +22,12 @@ export interface Project {
   done: boolean;
   subtasks: Subtask[];
   createdAt: number;
+  /** Board column. Defaults to 'backlog'. */
+  status: BoardStatus;
+  /** Minutes actually focused on this project (time-blindness aid). */
+  actualMins: number;
+  /** Optional short note / context. */
+  note?: string;
 }
 
 export type SlotType = 'task' | 'break';
@@ -48,6 +57,8 @@ export interface Settings {
   sound: boolean;
   confetti: boolean;
   autoReschedule: boolean;
+  /** Reduce visual noise / motion for sensory-sensitive users. */
+  calmMode: boolean;
 }
 
 export interface PomState {
@@ -57,4 +68,59 @@ export interface PomState {
   rounds: number;
   isBreak: boolean;
   dur: number;
+  /** Project the current focus session is attributed to. */
+  projectId: string | null;
+}
+
+/* ── ADHD: Brain dump (quick capture inbox) ── */
+export interface BrainDumpItem {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
+/* ── Gamification ── */
+export interface Achievement {
+  id: string;
+  name: string;
+  desc: string;
+  icon: string;
+  unlockedAt: number | null;
+}
+
+export interface Gamification {
+  xp: number;
+  level: number;
+}
+
+export interface Stats {
+  projectsDone: number;
+  subtasksDone: number;
+  pomodoros: number;
+  brainDumps: number;
+  focusMins: number;
+  breakdowns: number;
+}
+
+/* ── Google Sheets sync ── */
+export interface GoogleConfig {
+  clientId: string;
+  sheetUrl: string;
+  autoPush: boolean;
+}
+
+export type SyncStatus = 'idle' | 'connecting' | 'connected' | 'syncing' | 'error';
+
+export interface SyncState {
+  status: SyncStatus;
+  message: string;
+  lastSync: number | null;
+}
+
+/* ── Ephemeral toast (achievement / feedback) ── */
+export interface Toast {
+  id: string;
+  title: string;
+  desc: string;
+  icon: string;
 }

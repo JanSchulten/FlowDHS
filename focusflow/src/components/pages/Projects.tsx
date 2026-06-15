@@ -95,6 +95,8 @@ export function Projects({ state, dispatch }: Props) {
             onToggleSubtask={(pid, sid) => dispatch({ type: 'TOGGLE_SUBTASK', projectId: pid, subtaskId: sid })}
             onDeleteSubtask={(pid, sid) => dispatch({ type: 'DELETE_SUBTASK', projectId: pid, subtaskId: sid })}
             onAddSubtask={(pid, name, dur) => dispatch({ type: 'ADD_SUBTASK', projectId: pid, subtask: { name, dur, done: false } })}
+            onAddSubtasksBulk={(pid, subtasks) => dispatch({ type: 'ADD_SUBTASKS_BULK', projectId: pid, subtasks })}
+            onFocus={(pid) => { dispatch({ type: 'POM_SET_PROJECT', projectId: pid }); dispatch({ type: 'SET_PAGE', page: 'focus' }); }}
           />
         ))
       )}

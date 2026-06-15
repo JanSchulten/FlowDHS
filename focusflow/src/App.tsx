@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck, CalendarRange, KanbanSquare, Layers, Brain, Timer, Settings as SettingsIcon,
   Plus, RefreshCw, Moon, Sun, CloudUpload, CalendarClock,
@@ -15,19 +15,30 @@ import { Board } from './components/board/Board';
 import { Inbox } from './components/pages/Inbox';
 import { Focus } from './components/pages/Focus';
 import { Settings } from './components/pages/Settings';
+import { ProjectModal } from './components/projects/ProjectModal';
+import { FixtureModal } from './components/projects/FixtureModal';
+import type { Project, Fixture } from './types';
 import { useConfetti } from './components/ui/Confetti';
 import { CommandPalette } from './components/ui/CommandPalette';
 import type { Command } from './components/ui/CommandPalette';
 import { AchievementToast } from './components/ui/AchievementToast';
 import { Onboarding } from './components/ui/Onboarding';
 import { supabase } from './lib/supabase';
+import { useNotifications, usePomNotification } from './hooks/useNotifications';
 import { mapUser } from './engine/auth';
 import { pullState, pushState } from './engine/cloud';
 
 export default function App() {
   const { state, dispatch } = useStore();
 
+  // Global quick-add modals (reachable from the top bar "+" button).
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [fixtureModalOpen, setFixtureModalOpen] = useState(false);
+
   useConfetti(state.confettiTrigger, state.settings.confetti);
+
+  const { notify } = useNotifications(state.settings.notifications ?? false);
+  usePomNotification(state.pom.running, state.pom.secs, state.pom.isBreak, notify);
 
   const navigate = (page: string) => dispatch({ type: 'SET_PAGE', page });
 
@@ -120,7 +131,8 @@ export default function App() {
       { id: 'inbox', label: 'Gehe zu: Brain-Dump', icon: Brain, run: () => go('inbox') },
       { id: 'focus', label: 'Gehe zu: Fokus-Timer', icon: Timer, run: () => go('focus') },
       { id: 'settings', label: 'Gehe zu: Konto & Einstellungen', icon: SettingsIcon, run: () => go('settings') },
-      { id: 'new', label: 'Neues Projekt anlegen', hint: 'Projekte', icon: Plus, run: () => go('projects') },
+      { id: 'new', label: 'Neues Projekt anlegen', hint: 'Erstellen', icon: Plus, run: () => { setProjectModalOpen(true); close(); } },
+      { id: 'new-fixture', label: 'Neuen Termin anlegen', hint: 'Erstellen', icon: CalendarClock, run: () => { setFixtureModalOpen(true); close(); } },
       { id: 'plan', label: 'Woche neu planen', icon: RefreshCw, run: () => { dispatch({ type: 'PLAN_WEEK' }); close(); } },
       { id: 'theme', label: 'Theme wechseln', icon: state.theme === 'dark' ? Sun : Moon, run: () => { dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' }); close(); } },
       {
@@ -146,7 +158,7 @@ export default function App() {
   const renderPage = () => {
     switch (state.activePage) {
       case 'today': return <Today state={state} dispatch={dispatch} />;
-      case 'week': return <Week state={state} dispatch={dispatch} />;
+      case 'week': return <Week state={state} dispatch={dispatch} onNewFixture={() => setFixtureModalOpen(true)} />;
       case 'fixtures': return <Fixtures state={state} dispatch={dispatch} />;
       case 'board': return <Board state={state} dispatch={dispatch} />;
       case 'projects': return <Projects state={state} dispatch={dispatch} />;
@@ -168,6 +180,8 @@ export default function App() {
         onToggleTheme={() => dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' })}
         onOpenCommand={() => dispatch({ type: 'TOGGLE_COMMAND', open: true })}
         onOpenSettings={() => navigate('settings')}
+        onNewProject={() => setProjectModalOpen(true)}
+        onNewFixture={() => setFixtureModalOpen(true)}
       />
       <SideBar
         activePage={state.activePage}
@@ -186,6 +200,27 @@ export default function App() {
       />
       <AchievementToast toast={state.toast} onDismiss={() => dispatch({ type: 'DISMISS_TOAST' })} />
       <Onboarding open={!state.onboardingDone} onFinish={() => dispatch({ type: 'COMPLETE_ONBOARDING' })} />
+
+      <ProjectModal
+        open={projectModalOpen}
+        editProject={null}
+        containers={state.fixtures.filter((f) => f.kind === 'container')}
+        customCategories={state.settings.customCategories ?? []}
+        onClose={() => setProjectModalOpen(false)}
+        onSave={(data: Omit<Project, 'id' | 'createdAt'>) => {
+          dispatch({ type: 'ADD_PROJECT', payload: data });
+          setProjectModalOpen(false);
+        }}
+      />
+      <FixtureModal
+        open={fixtureModalOpen}
+        editFixture={null}
+        onClose={() => setFixtureModalOpen(false)}
+        onSave={(data: Omit<Fixture, 'id'>) => {
+          dispatch({ type: 'ADD_FIXTURE', payload: data });
+          setFixtureModalOpen(false);
+        }}
+      />
     </div>
   );
 }

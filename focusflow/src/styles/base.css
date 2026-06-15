@@ -122,6 +122,33 @@ a { color: var(--pri); }
   padding: 1px 5px; color: var(--tx2);
 }
 
+/* Quick-add ("+") menu */
+.quick-add { position: relative; }
+.quick-add-btn { padding: .42rem .8rem; }
+.quick-add-menu {
+  position: absolute; top: calc(100% + .5rem); left: 0; z-index: 60;
+  min-width: 250px;
+  background: var(--surf);
+  border: 1px solid var(--bdr);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh2, 0 12px 32px rgba(0,0,0,.28));
+  padding: .35rem;
+  display: flex; flex-direction: column; gap: .15rem;
+  animation: qa-pop .14s var(--ease, ease) both;
+}
+@keyframes qa-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.quick-add-item {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .55rem .65rem; border-radius: var(--r-md);
+  color: var(--tx2); text-align: left;
+  transition: background var(--ease), color var(--ease);
+}
+.quick-add-item:hover { background: var(--surf3); color: var(--tx); }
+.quick-add-item svg { flex-shrink: 0; color: var(--pri); }
+.quick-add-item span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.quick-add-item strong { font-size: var(--tx-sm); font-weight: 600; }
+.quick-add-item small { font-size: var(--tx-xs); color: var(--tx3); }
+
 /* XP + Level */
 .level-badge {
   display: inline-flex; align-items: center; gap: .5rem;
@@ -488,3 +515,90 @@ a { color: var(--pri); }
 }
 [data-calm="true"] body { background-image: none; }
 [data-calm="true"] .conf { display: none !important; }
+
+/* Week timeline */
+.week-cal { display: flex; overflow-x: auto; gap: 0; }
+.week-time-axis { flex-shrink: 0; width: 52px; padding-top: 56px; /* header height */ }
+.week-time-label { height: 64px; display: flex; align-items: flex-start; justify-content: flex-end;
+  padding-right: .4rem; font-size: 10px; color: var(--tx3); font-variant-numeric: tabular-nums; }
+.week-cols { display: flex; flex: 1; gap: 2px; min-width: 0; }
+.week-col { flex: 1 0 90px; position: relative; }
+.week-col-hdr { height: 56px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; position: sticky; top: 0; z-index: 2;
+  background: var(--bg); border-bottom: 1px solid var(--div); }
+.week-col-hdr.today { color: var(--pri); }
+.week-col-hdr .wc-name { font-size: var(--tx-xs); font-weight: 600; }
+.week-col-hdr .wc-num { font-size: 18px; font-weight: 800; line-height: 1.1; }
+.week-col-hdr.today .wc-num {
+  background: var(--grad-pri); color: #fff; border-radius: 50%;
+  width: 32px; height: 32px; display: grid; place-items: center; font-size: 14px; }
+.week-col-body { position: relative; cursor: pointer; }
+.week-col-body:hover { background: var(--pri-bg); }
+.week-hour-stripe { position: absolute; left: 0; right: 0; height: 64px;
+  border-top: 1px solid var(--div); pointer-events: none; }
+.week-slot { position: absolute; left: 2px; right: 2px; border-radius: var(--r-sm);
+  overflow: hidden; padding: 2px 4px; font-size: 10px; line-height: 1.3; cursor: default;
+  transition: filter var(--ease); pointer-events: auto; }
+.week-slot:hover { filter: brightness(1.1); }
+.week-slot.done { opacity: .5; text-decoration: line-through; }
+.week-slot.missed { outline: 1.5px dashed var(--err); }
+.week-slot-label { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
+.week-now-line { position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--err, #f87171); z-index: 3; pointer-events: none; }
+.week-now-dot { position: absolute; left: -3px; top: -4px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--err, #f87171); }
+
+/* ── Time Picker (segment) ── */
+.time-picker { display: flex; flex-direction: column; gap: .375rem; }
+.time-picker-wrap {
+  display: inline-flex; align-items: center; gap: .25rem;
+  background: var(--surf2); border: 1px solid var(--bdr); border-radius: var(--r-md);
+  padding: .3rem .5rem;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+.time-picker-wrap:focus-within { border-color: var(--pri); box-shadow: 0 0 0 3px var(--pri-bdr); }
+.time-seg {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; cursor: ns-resize;
+}
+.time-seg:focus { outline: none; }
+.time-seg-val {
+  font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  line-height: 1; min-width: 2.2ch; text-align: center; color: var(--tx);
+}
+.time-seg-arrow {
+  width: 24px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); color: var(--tx3);
+  transition: background var(--ease), color var(--ease);
+}
+.time-seg-arrow:hover { background: var(--surf3); color: var(--tx); }
+.time-colon { font-size: 1.5rem; font-weight: 800; color: var(--tx3); line-height: 1; padding: 0 .1rem; align-self: center; }
+
+/* ── Day toggle chips ── */
+.day-toggle-row { display: flex; gap: .35rem; flex-wrap: wrap; }
+.day-toggle {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: var(--tx-xs); font-weight: 700;
+  border: 1.5px solid var(--bdr); color: var(--tx2);
+  transition: background var(--ease), border-color var(--ease), color var(--ease), transform var(--ease);
+}
+.day-toggle:hover { border-color: var(--pri); color: var(--pri); }
+.day-toggle.active { background: var(--grad-pri); border-color: transparent; color: #fff; }
+.day-toggle:active { transform: scale(.88); }
+
+/* ── Fixture Kind option grid ── */
+.kind-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.kind-option {
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  padding: .65rem .4rem; border-radius: var(--r-lg);
+  border: 1.5px solid var(--bdr); color: var(--tx2); text-align: center;
+  transition: border-color var(--ease), background var(--ease), color var(--ease);
+}
+.kind-option:hover { border-color: var(--pri); color: var(--tx); }
+.kind-option.selected { border-color: var(--pri); background: var(--pri-bg); color: var(--pri); }
+.kind-icon { font-size: 18px; display: flex; }
+.kind-label { font-size: var(--tx-xs); font-weight: 700; }
+.kind-desc { font-size: 9px; color: var(--tx3); line-height: 1.3; }
+.kind-option.selected .kind-desc { color: var(--pri); opacity: .7; }

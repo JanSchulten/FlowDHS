@@ -1,19 +1,64 @@
-import { Clock, Coffee, Bell, RefreshCw, Trophy } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, Coffee, Bell, RefreshCw, Trophy, Tag, Plus, X, Pencil } from 'lucide-react';
 import type { AppState, Action } from '../../store/useStore';
 import { Toggle } from '../ui/Toggle';
 import { AccountPanel } from '../auth/AccountPanel';
 import { levelTitle } from '../../engine/gamification';
-import type { Settings as SettingsType } from '../../types';
+import type { Settings as SettingsType, CustomCategory } from '../../types';
+import { useNotifications } from '../../hooks/useNotifications';
 
 interface Props {
   state: AppState;
   dispatch: React.Dispatch<Action>;
 }
 
+const PALETTE = [
+  { color: '#a78bfa', bgColor: '#1e1b4b' },
+  { color: '#34d399', bgColor: '#064e3b' },
+  { color: '#f472b6', bgColor: '#500724' },
+  { color: '#fb923c', bgColor: '#431407' },
+  { color: '#60a5fa', bgColor: '#1e3a5f' },
+  { color: '#fbbf24', bgColor: '#451a03' },
+  { color: '#f87171', bgColor: '#450a0a' },
+  { color: '#a3e635', bgColor: '#1a2e05' },
+];
+
+const EMPTY_CAT = { name: '', color: PALETTE[0].color, bgColor: PALETTE[0].bgColor };
+
 export function Settings({ state, dispatch }: Props) {
   const { settings, game, achievements, stats } = state;
   const update = (partial: Partial<SettingsType>) => dispatch({ type: 'UPDATE_SETTINGS', payload: partial });
   const unlocked = achievements.filter((a) => a.unlockedAt).length;
+
+  const { request } = useNotifications(settings.notifications ?? false);
+
+  const [catForm, setCatForm] = useState(EMPTY_CAT);
+  const [editCatId, setEditCatId] = useState<string | null>(null);
+
+  const saveCategory = () => {
+    if (!catForm.name.trim()) return;
+    if (editCatId) {
+      dispatch({ type: 'UPDATE_CATEGORY', payload: { ...catForm, id: editCatId, name: catForm.name.trim() } });
+      setEditCatId(null);
+    } else {
+      dispatch({ type: 'ADD_CATEGORY', payload: { ...catForm, name: catForm.name.trim() } });
+    }
+    setCatForm(EMPTY_CAT);
+  };
+
+  const editCategory = (c: CustomCategory) => {
+    setCatForm({ name: c.name, color: c.color, bgColor: c.bgColor });
+    setEditCatId(c.id);
+  };
+
+  const handleNotifToggle = async (v: boolean) => {
+    if (v) {
+      const ok = await request();
+      if (ok) update({ notifications: true });
+    } else {
+      update({ notifications: false });
+    }
+  };
 
   return (
     <div>
@@ -92,7 +137,88 @@ export function Settings({ state, dispatch }: Props) {
               <span style={{ fontSize: 'var(--tx-sm)' }}>🧘 Ruhe-Modus (weniger Reize)</span>
               <Toggle checked={settings.calmMode} onChange={(v) => update({ calmMode: v })} aria-label="Ruhe-Modus" />
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: 'var(--tx-sm)' }}>🔔 Browser-Benachrichtigungen</span>
+                <div style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)' }}>Pomodoro-Ende, Aufgaben-Erinnerungen</div>
+              </div>
+              <Toggle
+                checked={settings.notifications ?? false}
+                onChange={handleNotifToggle}
+                aria-label="Benachrichtigungen"
+              />
+            </div>
           </div>
+        </div>
+
+        {/* Custom Categories */}
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-title"><Tag size={16} /> Eigene Kategorien</div>
+          <p style={{ fontSize: 'var(--tx-sm)', color: 'var(--tx2)', marginBottom: '1rem' }}>
+            Erstelle eigene Projekttypen neben den eingebauten (Deep Work, Kreativ, usw.).
+          </p>
+
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div className="form-group" style={{ flex: 1, minWidth: 140, marginBottom: 0 }}>
+              <label className="form-label">Name</label>
+              <input
+                className="input"
+                placeholder="z. B. Haushalt, Studium…"
+                value={catForm.name}
+                onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && saveCategory()}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Farbe</label>
+              <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+                {PALETTE.map((p) => (
+                  <button
+                    key={p.color}
+                    onClick={() => setCatForm({ ...catForm, color: p.color, bgColor: p.bgColor })}
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%', background: p.color,
+                      border: catForm.color === p.color ? '2px solid var(--tx)' : '2px solid transparent',
+                    }}
+                    aria-label={`Farbe ${p.color}`}
+                  />
+                ))}
+              </div>
+            </div>
+            <button className="btn btn-pri btn-sm" onClick={saveCategory}>
+              <Plus size={13} /> {editCatId ? 'Speichern' : 'Hinzufügen'}
+            </button>
+            {editCatId && (
+              <button className="btn btn-ghost btn-sm" onClick={() => { setEditCatId(null); setCatForm(EMPTY_CAT); }}>
+                <X size={13} /> Abbrechen
+              </button>
+            )}
+          </div>
+
+          {(settings.customCategories ?? []).length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+              {(settings.customCategories ?? []).map((c) => (
+                <div key={c.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '.5rem',
+                  padding: '.4rem .6rem', background: 'var(--surf2)',
+                  border: '1px solid var(--bdr)', borderRadius: 'var(--r-md)',
+                }}>
+                  <span style={{
+                    padding: '1px .55rem', borderRadius: 'var(--r-full)',
+                    background: c.bgColor, color: c.color,
+                    fontSize: 'var(--tx-xs)', fontWeight: 600, flexShrink: 0,
+                  }}>{c.name}</span>
+                  <span style={{ flex: 1, fontSize: 'var(--tx-xs)', color: 'var(--tx3)' }}>{c.color}</span>
+                  <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => editCategory(c)} aria-label="Bearbeiten">
+                    <Pencil size={12} />
+                  </button>
+                  <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => dispatch({ type: 'DELETE_CATEGORY', id: c.id })} aria-label="Löschen">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="card">

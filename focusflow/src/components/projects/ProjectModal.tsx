@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Check, Axe } from 'lucide-react';
-import type { Project, Subtask, Priority, Tag, BoardStatus, Fixture } from '../../types';
+import type { Project, Subtask, Priority, Tag, BoardStatus, Fixture, WorkContext, CustomCategory } from '../../types';
 import { Modal } from '../ui/Modal';
 import { uid } from '../../engine/utils';
 import { suggestSteps } from '../../engine/breakdown';
@@ -9,9 +9,17 @@ interface Props {
   open: boolean;
   editProject: Project | null;
   containers: Fixture[];
+  customCategories: CustomCategory[];
   onClose: () => void;
   onSave: (data: Omit<Project, 'id' | 'createdAt'>) => void;
 }
+
+const BUILTIN_TAGS: { value: Tag; label: string }[] = [
+  { value: 'focus', label: '🎯 Deep Work' },
+  { value: 'creative', label: '🎨 Kreativ' },
+  { value: 'energy', label: '⚡ High Energy' },
+  { value: 'admin', label: '📋 Admin' },
+];
 
 const EMPTY_FORM = {
   name: '',
@@ -22,9 +30,10 @@ const EMPTY_FORM = {
   estimateH: 4,
   status: 'backlog' as BoardStatus,
   fixtureId: '',
+  workContext: 'work' as WorkContext,
 };
 
-export function ProjectModal({ open, editProject, containers, onClose, onSave }: Props) {
+export function ProjectModal({ open, editProject, containers, customCategories, onClose, onSave }: Props) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [newSubName, setNewSubName] = useState('');
@@ -42,6 +51,7 @@ export function ProjectModal({ open, editProject, containers, onClose, onSave }:
           estimateH: Math.round((editProject.estimateMins / 60) * 10) / 10,
           status: editProject.status,
           fixtureId: editProject.fixtureId ?? '',
+          workContext: editProject.workContext ?? 'work',
         });
         setSubtasks([...(editProject.subtasks ?? [])]);
       } else {
@@ -87,6 +97,7 @@ export function ProjectModal({ open, editProject, containers, onClose, onSave }:
       actualMins: editProject?.actualMins ?? 0,
       note: editProject?.note,
       fixtureId: form.fixtureId || undefined,
+      workContext: form.workContext,
       subtasks,
     });
   };
@@ -170,10 +181,10 @@ export function ProjectModal({ open, editProject, containers, onClose, onSave }:
             value={form.tag}
             onChange={(e) => setForm((f) => ({ ...f, tag: e.target.value as Tag }))}
           >
-            <option value="focus">🎯 Deep Work</option>
-            <option value="creative">🎨 Kreativ</option>
-            <option value="energy">⚡ High Energy</option>
-            <option value="admin">📋 Admin</option>
+            {BUILTIN_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            {customCategories.length > 0 && <optgroup label="Eigene Kategorien">
+              {customCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </optgroup>}
           </select>
         </div>
         <div className="form-group">
@@ -204,6 +215,25 @@ export function ProjectModal({ open, editProject, containers, onClose, onSave }:
           <option value="doing">In Arbeit</option>
           <option value="done">Erledigt</option>
         </select>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Kontext</label>
+        <div style={{ display: 'flex', gap: '.5rem' }}>
+          {(['work', 'private'] as WorkContext[]).map((ctx) => (
+            <button
+              key={ctx}
+              className={`btn btn-sm ${form.workContext === ctx ? 'btn-pri' : 'btn-ghost'}`}
+              onClick={() => setForm((f) => ({ ...f, workContext: ctx }))}
+              aria-pressed={form.workContext === ctx}
+            >
+              {ctx === 'work' ? '💼 Arbeit' : '🏠 Privat'}
+            </button>
+          ))}
+        </div>
+        <div className="form-hint">
+          Private Projekte können in Arbeitszeiträume eingeplant werden — nicht umgekehrt.
+        </div>
       </div>
 
       {containers.length > 0 && (

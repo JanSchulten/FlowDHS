@@ -29,6 +29,26 @@ function SlotBlock({ slot, isNow, onToggle, onReschedule }: {
     );
   }
 
+  if (slot.type === 'fixed') {
+    const locked = slot.locked;
+    return (
+      <div className="schedule-slot">
+        <div className="slot-time">{slot.start}</div>
+        <div className={`slot-block slot-fixed ${locked ? 'slot-fixed-lock' : ''}`}>
+          <span style={{ fontSize: 'var(--tx-sm)', fontWeight: 700 }}>
+            {locked ? '🔒' : '🪟'} {slot.label}
+          </span>
+          <span className={`tag tag-${slot.tag ?? 'admin'}`} style={{ fontSize: 9 }}>
+            {slot.start}–{slot.end}
+          </span>
+          <span style={{ fontSize: 'var(--tx-2xs, 10px)', color: 'var(--tx3)' }}>
+            {locked ? 'geblockt' : 'Fenster für Projekte'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const isMissed = slot.missed && !slot.done;
 
   return (

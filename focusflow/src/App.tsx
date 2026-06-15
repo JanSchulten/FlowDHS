@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
   CalendarCheck, CalendarRange, KanbanSquare, Layers, Brain, Timer, Settings as SettingsIcon,
-  Plus, RefreshCw, Moon, Sun, CloudUpload,
+  Plus, RefreshCw, Moon, Sun, CloudUpload, CalendarClock,
 } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { toSnapshot } from './store/reducer';
@@ -9,6 +9,7 @@ import { TopBar } from './components/layout/TopBar';
 import { SideBar } from './components/layout/SideBar';
 import { Today } from './components/pages/Today';
 import { Week } from './components/pages/Week';
+import { Fixtures } from './components/pages/Fixtures';
 import { Projects } from './components/pages/Projects';
 import { Board } from './components/board/Board';
 import { Inbox } from './components/pages/Inbox';
@@ -113,6 +114,7 @@ export default function App() {
     return [
       { id: 'today', label: 'Gehe zu: Tagesplan', icon: CalendarCheck, run: () => go('today') },
       { id: 'week', label: 'Gehe zu: Wochenplan', icon: CalendarRange, run: () => go('week') },
+      { id: 'fixtures', label: 'Gehe zu: Fixtermine', icon: CalendarClock, run: () => go('fixtures') },
       { id: 'board', label: 'Gehe zu: Board', icon: KanbanSquare, run: () => go('board') },
       { id: 'projects', label: 'Gehe zu: Projekte', icon: Layers, run: () => go('projects') },
       { id: 'inbox', label: 'Gehe zu: Brain-Dump', icon: Brain, run: () => go('inbox') },
@@ -145,6 +147,7 @@ export default function App() {
     switch (state.activePage) {
       case 'today': return <Today state={state} dispatch={dispatch} />;
       case 'week': return <Week state={state} dispatch={dispatch} />;
+      case 'fixtures': return <Fixtures state={state} dispatch={dispatch} />;
       case 'board': return <Board state={state} dispatch={dispatch} />;
       case 'projects': return <Projects state={state} dispatch={dispatch} />;
       case 'inbox': return <Inbox state={state} dispatch={dispatch} />;

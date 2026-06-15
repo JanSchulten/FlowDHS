@@ -1,7 +1,7 @@
 import { Clock, Coffee, Bell, RefreshCw, Trophy } from 'lucide-react';
 import type { AppState, Action } from '../../store/useStore';
 import { Toggle } from '../ui/Toggle';
-import { GoogleSyncPanel } from '../sync/GoogleSyncPanel';
+import { AccountPanel } from '../auth/AccountPanel';
 import { levelTitle } from '../../engine/gamification';
 import type { Settings as SettingsType } from '../../types';
 
@@ -21,7 +21,7 @@ export function Settings({ state, dispatch }: Props) {
       <p className="pg-sub">Passe den Planer an deine ADHS-Bedürfnisse an. Alles ist optional — weniger ist oft mehr.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-        <GoogleSyncPanel state={state} dispatch={dispatch} />
+        <AccountPanel state={state} dispatch={dispatch} />
 
         {/* Fortschritt / Gamification */}
         <div className="card" style={{ gridColumn: '1 / -1' }}>

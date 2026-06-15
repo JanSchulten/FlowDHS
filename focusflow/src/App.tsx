@@ -4,6 +4,7 @@ import {
   Plus, RefreshCw, Moon, Sun, CloudUpload,
 } from 'lucide-react';
 import { useStore } from './store/useStore';
+import { toSnapshot } from './store/reducer';
 import { TopBar } from './components/layout/TopBar';
 import { SideBar } from './components/layout/SideBar';
 import { Today } from './components/pages/Today';
@@ -18,7 +19,9 @@ import { CommandPalette } from './components/ui/CommandPalette';
 import type { Command } from './components/ui/CommandPalette';
 import { AchievementToast } from './components/ui/AchievementToast';
 import { Onboarding } from './components/ui/Onboarding';
-import { pushProjects, parseSheetId } from './engine/sheets';
+import { supabase } from './lib/supabase';
+import { mapUser, saveGoogleToken } from './engine/auth';
+import { pullState, pushState } from './engine/cloud';
 
 export default function App() {
   const { state, dispatch } = useStore();
@@ -26,6 +29,10 @@ export default function App() {
   useConfetti(state.confettiTrigger, state.settings.confetti);
 
   const navigate = (page: string) => dispatch({ type: 'SET_PAGE', page });
+
+  // Always-fresh state for use inside async callbacks without re-subscribing.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Reflect calm mode on the root element so CSS can dial down motion/visuals.
   useEffect(() => {
@@ -44,25 +51,63 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [dispatch]);
 
-  // Optional auto-push to Google Sheets (debounced) when enabled & configured.
-  const pushTimer = useRef<number | null>(null);
-  const { google } = state;
-  const projectsSig = useMemo(() => JSON.stringify(state.projects), [state.projects]);
+  // ── Supabase auth: pick up existing session + react to login/logout. ──
   useEffect(() => {
-    if (!google.autoPush || !google.clientId || !parseSheetId(google.sheetUrl)) return;
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      saveGoogleToken(data.session?.provider_token);
+      dispatch({ type: 'SET_USER', user: mapUser(data.session?.user) });
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      saveGoogleToken(session?.provider_token);
+      dispatch({ type: 'SET_USER', user: mapUser(session?.user) });
+    });
+    return () => { active = false; sub.subscription.unsubscribe(); };
+  }, [dispatch]);
+
+  // ── On login: pull the cloud snapshot (or seed it from local on first use). ──
+  const userId = state.user?.id ?? null;
+  const pulledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!userId) { pulledFor.current = null; return; }
+    if (pulledFor.current === userId) return;
+    pulledFor.current = userId;
+    (async () => {
+      dispatch({ type: 'SET_SYNC', payload: { status: 'syncing', message: 'Synchronisiere…' } });
+      try {
+        const snap = await pullState(userId);
+        if (snap) {
+          dispatch({ type: 'HYDRATE', snapshot: snap });
+        } else {
+          await pushState(userId, toSnapshot(stateRef.current));
+          dispatch({ type: 'HYDRATE', snapshot: {} }); // marks cloudLoaded
+        }
+        dispatch({ type: 'SET_SYNC', payload: { status: 'connected', message: 'Synchronisiert', lastSync: Date.now() } });
+      } catch (e) {
+        dispatch({ type: 'SET_SYNC', payload: { status: 'error', message: (e as Error).message } });
+      }
+    })();
+  }, [userId, dispatch]);
+
+  // ── Auto-push to the cloud (debounced) once the initial pull is done. ──
+  const snapSig = useMemo(() => JSON.stringify(toSnapshot(state)), [state]);
+  const cloudLoaded = state.cloudLoaded;
+  const pushTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (!userId || !cloudLoaded) return;
     if (pushTimer.current) clearTimeout(pushTimer.current);
     pushTimer.current = window.setTimeout(async () => {
       dispatch({ type: 'SET_SYNC', payload: { status: 'syncing', message: 'Auto-Sync…' } });
       try {
-        await pushProjects(google.clientId, google.sheetUrl, state.projects);
+        await pushState(userId, toSnapshot(stateRef.current));
         dispatch({ type: 'SET_SYNC', payload: { status: 'connected', message: 'Auto-synchronisiert', lastSync: Date.now() } });
       } catch (e) {
         dispatch({ type: 'SET_SYNC', payload: { status: 'error', message: (e as Error).message } });
       }
     }, 2500);
     return () => { if (pushTimer.current) clearTimeout(pushTimer.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectsSig, google.autoPush, google.clientId, google.sheetUrl]);
+  }, [snapSig, userId, cloudLoaded, dispatch]);
 
   const commands: Command[] = useMemo(() => {
     const close = () => dispatch({ type: 'TOGGLE_COMMAND', open: false });
@@ -74,19 +119,19 @@ export default function App() {
       { id: 'projects', label: 'Gehe zu: Projekte', icon: Layers, run: () => go('projects') },
       { id: 'inbox', label: 'Gehe zu: Brain-Dump', icon: Brain, run: () => go('inbox') },
       { id: 'focus', label: 'Gehe zu: Fokus-Timer', icon: Timer, run: () => go('focus') },
-      { id: 'settings', label: 'Gehe zu: Einstellungen', icon: SettingsIcon, run: () => go('settings') },
+      { id: 'settings', label: 'Gehe zu: Konto & Einstellungen', icon: SettingsIcon, run: () => go('settings') },
       { id: 'new', label: 'Neues Projekt anlegen', hint: 'Projekte', icon: Plus, run: () => go('projects') },
       { id: 'plan', label: 'Woche neu planen', icon: RefreshCw, run: () => { dispatch({ type: 'PLAN_WEEK' }); close(); } },
       { id: 'theme', label: 'Theme wechseln', icon: state.theme === 'dark' ? Sun : Moon, run: () => { dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' }); close(); } },
       {
-        id: 'push', label: 'Jetzt in Google Sheet hochladen', icon: CloudUpload,
+        id: 'sync', label: 'Jetzt in der Cloud sichern', icon: CloudUpload,
         run: async () => {
           close();
-          if (!google.clientId || !parseSheetId(google.sheetUrl)) { navigate('settings'); return; }
-          dispatch({ type: 'SET_SYNC', payload: { status: 'syncing', message: 'Lade hoch…' } });
+          if (!userId) { navigate('settings'); return; }
+          dispatch({ type: 'SET_SYNC', payload: { status: 'syncing', message: 'Sichere…' } });
           try {
-            await pushProjects(google.clientId, google.sheetUrl, state.projects);
-            dispatch({ type: 'SET_SYNC', payload: { status: 'connected', message: 'Hochgeladen', lastSync: Date.now() } });
+            await pushState(userId, toSnapshot(stateRef.current));
+            dispatch({ type: 'SET_SYNC', payload: { status: 'connected', message: 'Gesichert', lastSync: Date.now() } });
           } catch (e) {
             dispatch({ type: 'SET_SYNC', payload: { status: 'error', message: (e as Error).message } });
           }
@@ -94,7 +139,7 @@ export default function App() {
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.theme, google.clientId, google.sheetUrl, state.projects]);
+  }, [state.theme, userId]);
 
   const openProjects = state.projects.filter((p) => !p.done).length;
 
@@ -118,6 +163,7 @@ export default function App() {
         xp={state.game.xp}
         streak={state.streak}
         sync={state.sync}
+        user={state.user}
         onToggleTheme={() => dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' })}
         onOpenCommand={() => dispatch({ type: 'TOGGLE_COMMAND', open: true })}
         onOpenSettings={() => navigate('settings')}

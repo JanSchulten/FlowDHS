@@ -1,6 +1,6 @@
-import { Moon, Sun, Search, Cloud } from 'lucide-react';
+import { Moon, Sun, Search, Cloud, LogIn } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { SyncState } from '../../types';
+import type { SyncState, AppUser } from '../../types';
 import { LevelWidget } from '../ui/LevelWidget';
 
 interface Props {
@@ -8,12 +8,13 @@ interface Props {
   xp: number;
   streak: number;
   sync: SyncState;
+  user: AppUser | null;
   onToggleTheme: () => void;
   onOpenCommand: () => void;
   onOpenSettings: () => void;
 }
 
-export function TopBar({ theme, xp, streak, sync, onToggleTheme, onOpenCommand, onOpenSettings }: Props) {
+export function TopBar({ theme, xp, streak, sync, user, onToggleTheme, onOpenCommand, onOpenSettings }: Props) {
   const [dateStr, setDateStr] = useState('');
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function TopBar({ theme, xp, streak, sync, onToggleTheme, onOpenCommand, 
   const syncLabel =
     sync.status === 'connected' ? 'Sync' :
     sync.status === 'syncing' ? 'Sync…' :
-    sync.status === 'error' ? 'Fehler' : 'Offline';
+    sync.status === 'error' ? 'Fehler' : 'Cloud';
 
   return (
     <header className="topbar">
@@ -53,15 +54,26 @@ export function TopBar({ theme, xp, streak, sync, onToggleTheme, onOpenCommand, 
       <div className="topbar-r">
         <span className="date-chip">{dateStr}</span>
         {streak > 0 && <span className="streak-chip">🔥 {streak}</span>}
-        <button
-          className={`sync-chip ${sync.status}`}
-          onClick={onOpenSettings}
-          title={sync.message || 'Google-Sheets-Sync'}
-          aria-label="Sync-Status"
-        >
-          <Cloud size={12} />
-          {syncLabel}
-        </button>
+
+        {user ? (
+          <button
+            className={`sync-chip ${sync.status}`}
+            onClick={onOpenSettings}
+            title={sync.message || 'Cloud-Sync (Supabase)'}
+            aria-label="Konto & Sync-Status"
+          >
+            {user.avatar
+              ? <img src={user.avatar} alt="" width={16} height={16} style={{ borderRadius: '50%' }} referrerPolicy="no-referrer" />
+              : <Cloud size={12} />}
+            {syncLabel}
+          </button>
+        ) : (
+          <button className="sync-chip" onClick={onOpenSettings} title="Mit Google anmelden" aria-label="Anmelden">
+            <LogIn size={12} />
+            Anmelden
+          </button>
+        )}
+
         <LevelWidget xp={xp} onClick={onOpenSettings} />
         <button className="icon-btn" onClick={onToggleTheme} title="Theme wechseln" aria-label="Theme wechseln">
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}

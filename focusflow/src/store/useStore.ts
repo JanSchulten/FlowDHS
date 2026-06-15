@@ -1,14 +1,10 @@
 import { useReducer, useEffect, useRef } from 'react';
-import { reducer, INITIAL_STATE } from './reducer';
+import { reducer, INITIAL_STATE, toSnapshot } from './reducer';
 import type { AppState, Action } from './reducer';
 
 function saveToStorage(state: AppState) {
   try {
-    const {
-      pom: _pom, activePage: _ap, projectFilter: _pf, confettiTrigger: _ct,
-      toast: _t, commandOpen: _co, sync: _sy, ...persist
-    } = state;
-    localStorage.setItem('ff2_state', JSON.stringify(persist));
+    localStorage.setItem('ff2_state', JSON.stringify(toSnapshot(state)));
   } catch {}
 }
 

@@ -111,7 +111,7 @@ export function Week({ state, dispatch, onNewFixture }: Props) {
       </div>
 
       <div style={{ overflow: 'hidden', borderRadius: 'var(--r-xl)', border: '1px solid var(--div)', background: 'var(--surf)' }}>
-        <div style={{ display: 'flex', overflowX: 'auto' }} ref={scrollRef}>
+        <div className="week-cal" style={{ display: 'flex', overflowX: 'auto' }} ref={scrollRef}>
           <div className="week-time-axis">
             {hours.map((h) => (
               <div key={h} className="week-time-label">

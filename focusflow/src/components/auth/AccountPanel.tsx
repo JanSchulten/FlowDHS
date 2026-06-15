@@ -1,15 +1,11 @@
 import { useState } from 'react';
 import {
-  LogIn, LogOut, CloudUpload, CloudDownload, CalendarDays,
-  CalendarPlus, CalendarCheck, RefreshCw, Mail,
+  LogOut, CloudUpload, CloudDownload, Mail, RefreshCw,
 } from 'lucide-react';
 import type { AppState, Action } from '../../store/useStore';
 import { toSnapshot } from '../../store/reducer';
-import { signInGoogle, signInEmail, signUpEmail, signOut, getGoogleToken } from '../../engine/auth';
+import { signInEmail, signUpEmail, signOut } from '../../engine/auth';
 import { pullState, pushState } from '../../engine/cloud';
-import { importEvents, exportSchedule } from '../../engine/calendar';
-import { Toggle } from '../ui/Toggle';
-import { todayKey } from '../../engine/utils';
 
 interface Props {
   state: AppState;
@@ -17,12 +13,15 @@ interface Props {
 }
 
 export function AccountPanel({ state, dispatch }: Props) {
-  const { user, sync, calendar } = state;
+  const { user, sync } = state;
   const [busy, setBusy] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [authMsg, setAuthMsg] = useState('');
+
+  const setSync = (status: 'syncing' | 'connected' | 'error' | 'idle', message: string) =>
+    dispatch({ type: 'SET_SYNC', payload: { status, message, ...(status === 'connected' ? { lastSync: Date.now() } : {}) } });
 
   const doEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +45,6 @@ export function AccountPanel({ state, dispatch }: Props) {
     }
   };
 
-  const setSync = (status: 'syncing' | 'connected' | 'error' | 'idle', message: string) =>
-    dispatch({ type: 'SET_SYNC', payload: { status, message, ...(status === 'connected' ? { lastSync: Date.now() } : {}) } });
-
   const doPush = async () => {
     if (!user) return;
     setBusy('push'); setSync('syncing', 'Sichere…');
@@ -70,32 +66,6 @@ export function AccountPanel({ state, dispatch }: Props) {
     finally { setBusy(''); }
   };
 
-  const doImport = async () => {
-    const token = getGoogleToken();
-    if (!token) { setSync('error', 'Kein Kalender-Token – bitte neu mit Google anmelden.'); return; }
-    setBusy('import'); setSync('syncing', 'Importiere Termine…');
-    try {
-      const drafts = await importEvents(token, 7);
-      dispatch({ type: 'IMPORT_EVENTS', drafts });
-      dispatch({ type: 'SET_CALENDAR', payload: { enabled: true, lastImport: Date.now() } });
-      setSync('connected', `${drafts.length} Termine geprüft`);
-    } catch (e) { setSync('error', (e as Error).message); }
-    finally { setBusy(''); }
-  };
-
-  const doExport = async () => {
-    const token = getGoogleToken();
-    if (!token) { setSync('error', 'Kein Kalender-Token – bitte neu mit Google anmelden.'); return; }
-    const slots = state.schedule[todayKey()] ?? [];
-    setBusy('export'); setSync('syncing', 'Schreibe in den Kalender…');
-    try {
-      const n = await exportSchedule(token, slots, todayKey());
-      dispatch({ type: 'SET_CALENDAR', payload: { enabled: true, lastExport: Date.now() } });
-      setSync('connected', `${n} Blöcke in den Kalender geschrieben`);
-    } catch (e) { setSync('error', (e as Error).message); }
-    finally { setBusy(''); }
-  };
-
   const statusColor =
     sync.status === 'error' ? 'var(--err)' :
     sync.status === 'connected' ? 'var(--ok)' :
@@ -103,25 +73,14 @@ export function AccountPanel({ state, dispatch }: Props) {
 
   return (
     <div className="card" style={{ gridColumn: '1 / -1' }}>
-      <div className="card-title"><CalendarDays size={16} /> Konto, Cloud &amp; Kalender</div>
+      <div className="card-title"><CloudUpload size={16} /> Konto &amp; Cloud-Speicher</div>
 
       {!user ? (
         <>
           <p style={{ fontSize: 'var(--tx-sm)', color: 'var(--tx2)', marginBottom: '1rem' }}>
-            Melde dich an – deine Projekte werden dauerhaft in der Cloud (Supabase)
-            gespeichert. Mit <strong>Google</strong> kannst du zusätzlich deinen
-            Kalender in beide Richtungen synchronisieren.
+            Melde dich mit E-Mail an – deine Projekte werden dauerhaft und
+            geräteübergreifend in der Cloud (Supabase) gespeichert.
           </p>
-
-          <button className="btn btn-pri" onClick={() => signInGoogle().catch((e) => setAuthMsg(e.message))} aria-label="Mit Google anmelden">
-            <LogIn size={15} /> Mit Google anmelden
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', margin: '1rem 0' }}>
-            <span style={{ flex: 1, height: 1, background: 'var(--bdr)' }} />
-            <span style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)' }}>oder mit E-Mail</span>
-            <span style={{ flex: 1, height: 1, background: 'var(--bdr)' }} />
-          </div>
 
           <form onSubmit={doEmailAuth} style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', maxWidth: 380 }}>
             <div className="form-group" style={{ margin: 0 }}>
@@ -161,9 +120,9 @@ export function AccountPanel({ state, dispatch }: Props) {
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem' }}>
-            {user.avatar
-              ? <img src={user.avatar} alt="" width={40} height={40} style={{ borderRadius: '50%' }} referrerPolicy="no-referrer" />
-              : <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pri-bg)', color: 'var(--pri)', display: 'grid', placeItems: 'center', fontWeight: 700 }}>{user.name.charAt(0).toUpperCase()}</div>}
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--pri-bg)', color: 'var(--pri)', display: 'grid', placeItems: 'center', fontWeight: 700 }}>
+              {(user.name || user.email).charAt(0).toUpperCase()}
+            </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 'var(--tx-sm)' }}>{user.name}</div>
               <div style={{ fontSize: 'var(--tx-xs)', color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
@@ -173,7 +132,6 @@ export function AccountPanel({ state, dispatch }: Props) {
             </button>
           </div>
 
-          <div style={{ fontSize: 'var(--tx-xs)', fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.04em', margin: '.5rem 0' }}>Datenbank</div>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
             <button className="btn btn-pri btn-sm" onClick={doPush} disabled={busy !== ''} aria-label="In Cloud sichern">
               <CloudUpload size={14} /> {busy === 'push' ? 'Sichere…' : 'In Cloud sichern'}
@@ -182,28 +140,9 @@ export function AccountPanel({ state, dispatch }: Props) {
               <CloudDownload size={14} /> Aus Cloud laden
             </button>
           </div>
-
-          <div style={{ fontSize: 'var(--tx-xs)', fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.04em', margin: '1rem 0 .5rem' }}>Google-Kalender</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.6rem' }}>
-            <span style={{ fontSize: 'var(--tx-sm)' }}>Kalender-Sync aktiv</span>
-            <Toggle checked={calendar.enabled} onChange={(v) => dispatch({ type: 'SET_CALENDAR', payload: { enabled: v } })} aria-label="Kalender-Sync" />
-          </div>
-          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-            <button className="btn btn-ghost btn-sm" onClick={doImport} disabled={busy !== ''} aria-label="Termine importieren">
-              <CalendarPlus size={14} /> {busy === 'import' ? 'Importiere…' : 'Termine importieren (7 Tage)'}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={doExport} disabled={busy !== ''} aria-label="Heute in Kalender exportieren">
-              <CalendarCheck size={14} /> {busy === 'export' ? 'Schreibe…' : 'Heute in Kalender'}
-            </button>
-          </div>
           <div className="form-hint" style={{ marginTop: '.4rem' }}>
-            Import legt Termine als Projekte an · Export schreibt die heutigen Fokus-Blöcke als Kalendereinträge (erneutes Ausführen ersetzt sie).
+            Änderungen werden automatisch gesichert. Manuell geht es jederzeit über die Buttons.
           </div>
-          {!getGoogleToken() && (
-            <div className="form-hint" style={{ color: 'var(--err)' }}>
-              Kalender-Sync benötigt eine Anmeldung mit Google (bei E-Mail-Login nicht verfügbar).
-            </div>
-          )}
         </>
       )}
 

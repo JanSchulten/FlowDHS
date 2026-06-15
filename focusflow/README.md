@@ -27,13 +27,11 @@ modernen, reizarmen Oberfläche auf monday.com-Niveau.
 - Dark/Light Mode, vollständig tastaturbedienbar, `prefers-reduced-motion`
 - Mobile-first mit Bottom-Navigation
 
-**Datenbank & Login: Supabase + Google**
-- 🔐 **Google-Login** über Supabase Auth
+**Datenbank & Login: Supabase**
+- 🔐 **E-Mail-Login** über Supabase Auth
 - ☁️ Projekte/Aufgaben werden dauerhaft & geräteübergreifend in **Supabase**
   (Postgres, ein JSONB-Datensatz pro User) gespeichert — abgesichert per
   Row-Level-Security
-- 📅 **Google-Kalender-Sync in beide Richtungen**: Termine importieren *und*
-  die heutigen Fokus-Blöcke als Kalendereinträge exportieren
 
 Lokal bleibt `localStorage` die schnelle Quelle; bei Anmeldung wird automatisch
 mit der Cloud synchronisiert (Pull beim Login, debounced Push bei Änderungen).
@@ -54,28 +52,11 @@ beide sind für den Browser gedacht; Schutz erfolgt über Row-Level-Security).
 1. **Tabelle + RLS anlegen:** In Supabase → *SQL Editor* den Inhalt von
    [`supabase/schema.sql`](supabase/schema.sql) ausführen (legt `app_state`
    inkl. Row-Level-Security an).
-2. **Google als Login-Provider aktivieren:** Supabase → *Authentication →
-   Providers → Google* aktivieren und Client-ID + Secret eines Google-OAuth-
-   Clients eintragen.
-3. **Redirect-URLs setzen:** Supabase → *Authentication → URL Configuration* →
-   die App-URL (z. B. `https://janschulten.github.io/FlowDHS/`) als *Site URL*
-   und unter *Redirect URLs* eintragen.
+2. **E-Mail-Login aktivieren:** Supabase → *Authentication → Providers → Email*
+   aktivieren (Passwort-Login).
 
-## Google Cloud (für Login + Kalender)
-
-1. [Google Cloud Console](https://console.cloud.google.com/) → Projekt anlegen.
-2. **APIs aktivieren:** *Google Calendar API*.
-3. **OAuth-Consent-Screen** konfigurieren und den Scope
-   `.../auth/calendar.events` hinzufügen.
-4. **OAuth-Client-ID** (Typ „Webanwendung“) erstellen:
-   - *Autorisierte Weiterleitungs-URI:*
-     `https://<dein-projekt>.supabase.co/auth/v1/callback`
-   - *Autorisierte JavaScript-Quelle:* die App-URL
-5. Client-ID + Secret in Supabase (Schritt 2 oben) eintragen.
-
-Danach: App öffnen → *Einstellungen → Konto* → **Mit Google anmelden**. Ab dann
-synchronisieren Projekte automatisch, und unter *Google-Kalender* kannst du
-Termine importieren bzw. die heutigen Blöcke exportieren.
+Danach: App öffnen → *Einstellungen → Konto* → mit E-Mail registrieren/anmelden.
+Ab dann synchronisieren sich deine Projekte automatisch mit der Cloud.
 
 ## Architektur
 
@@ -84,7 +65,7 @@ src/
   config.ts       Supabase-Verbindung (URL + publishable key)
   lib/            supabase client
   types/          Datenmodelle (Project, Subtask, Schedule, Gamification, …)
-  engine/         planner · gamification · breakdown · auth · cloud · calendar · utils
+  engine/         planner · gamification · breakdown · auth · cloud · utils
   store/          useReducer + localStorage + Cloud-Snapshot (reducer.ts, useStore.ts)
   components/     layout · ui · pages · projects · board · auth
   styles/         tokens.css (Design-Tokens) · base.css
@@ -94,5 +75,4 @@ supabase/
 
 State: `useReducer` + `localStorage`, gespiegelt nach Supabase (JSONB-Snapshot
 pro User). Laufzeit-Abhängigkeiten: `react`, `lucide-react`,
-`@supabase/supabase-js`. Der Google-Kalender wird per REST mit dem
-Provider-Token aus dem Google-Login angesprochen.
+`@supabase/supabase-js`.

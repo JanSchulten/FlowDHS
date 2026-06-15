@@ -28,8 +28,6 @@ export interface Project {
   actualMins: number;
   /** Optional short note / context. */
   note?: string;
-  /** Source Google Calendar event id, if this project came from / maps to one. */
-  googleEventId?: string;
 }
 
 export type SlotType = 'task' | 'break';
@@ -110,14 +108,6 @@ export interface AppUser {
   email: string;
   name: string;
   avatar: string;
-}
-
-/* ── Google Calendar sync ── */
-export interface CalendarState {
-  /** User opted into calendar sync. */
-  enabled: boolean;
-  lastImport: number | null;
-  lastExport: number | null;
 }
 
 export type SyncStatus = 'idle' | 'connecting' | 'connected' | 'syncing' | 'error';

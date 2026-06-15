@@ -24,7 +24,3 @@ export function setSupabaseUrl(url: string): void {
 export function isSupabaseConfigured(): boolean {
   return /^https:\/\/[a-z0-9]+\.supabase\.co/.test(getSupabaseUrl());
 }
-
-// Google scopes requested during login: identity + read/write calendar events.
-export const GOOGLE_SCOPES =
-  'openid email profile https://www.googleapis.com/auth/calendar.events';

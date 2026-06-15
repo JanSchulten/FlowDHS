@@ -20,7 +20,7 @@ import type { Command } from './components/ui/CommandPalette';
 import { AchievementToast } from './components/ui/AchievementToast';
 import { Onboarding } from './components/ui/Onboarding';
 import { supabase } from './lib/supabase';
-import { mapUser, saveGoogleToken } from './engine/auth';
+import { mapUser } from './engine/auth';
 import { pullState, pushState } from './engine/cloud';
 
 export default function App() {
@@ -56,11 +56,9 @@ export default function App() {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      saveGoogleToken(data.session?.provider_token);
       dispatch({ type: 'SET_USER', user: mapUser(data.session?.user) });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      saveGoogleToken(session?.provider_token);
       dispatch({ type: 'SET_USER', user: mapUser(session?.user) });
     });
     return () => { active = false; sub.subscription.unsubscribe(); };

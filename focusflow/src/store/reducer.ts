@@ -1,7 +1,7 @@
 import type {
   Project, Schedule, Settings, Subtask, PomState, BrainDumpItem,
   Gamification, Achievement, Stats, SyncState, Toast, BoardStatus,
-  AppUser, CalendarState,
+  AppUser,
 } from '../types';
 import { uid, todayKey } from '../engine/utils';
 import { planDay, planWeek, checkMissed, autoReschedule } from '../engine/planner';
@@ -45,7 +45,6 @@ const DEFAULT_STATS: Stats = {
   projectsDone: 0, subtasksDone: 0, pomodoros: 0, brainDumps: 0, focusMins: 0, breakdowns: 0,
 };
 
-const DEFAULT_CALENDAR: CalendarState = { enabled: false, lastImport: null, lastExport: null };
 const DEFAULT_SYNC: SyncState = { status: 'idle', message: '', lastSync: null };
 
 function catalogToAchievements(): Achievement[] {
@@ -66,7 +65,6 @@ export interface AppState {
   game: Gamification;
   achievements: Achievement[];
   stats: Stats;
-  calendar: CalendarState;
   sync: SyncState;
   user: AppUser | null;
   /** True once the cloud snapshot has been pulled (gates auto-push). */
@@ -87,7 +85,6 @@ export interface Snapshot {
   game: Gamification;
   achievements: Achievement[];
   stats: Stats;
-  calendar: CalendarState;
   onboardingDone: boolean;
 }
 
@@ -102,7 +99,6 @@ export function toSnapshot(state: AppState): Snapshot {
     game: state.game,
     achievements: state.achievements,
     stats: state.stats,
-    calendar: state.calendar,
     onboardingDone: state.onboardingDone,
   };
 }
@@ -139,9 +135,7 @@ export type Action =
   | { type: 'CONVERT_BRAINDUMP'; id: string }
   | { type: 'SET_SYNC'; payload: Partial<SyncState> }
   | { type: 'SET_USER'; user: AppUser | null }
-  | { type: 'SET_CALENDAR'; payload: Partial<CalendarState> }
   | { type: 'HYDRATE'; snapshot: Partial<Snapshot> }
-  | { type: 'IMPORT_EVENTS'; drafts: Partial<Project>[] }
   | { type: 'REPLACE_PROJECTS'; projects: Project[] }
   | { type: 'DISMISS_TOAST' }
   | { type: 'TOGGLE_COMMAND'; open?: boolean }
@@ -166,7 +160,6 @@ function migrateProject(p: Partial<Project>): Project {
     status: p.status ?? (p.done ? 'done' : 'backlog'),
     actualMins: p.actualMins ?? 0,
     note: p.note,
-    googleEventId: p.googleEventId,
   };
 }
 
@@ -202,7 +195,6 @@ function buildInitialState(): AppState {
     game: saved.game ?? { xp: 0, level: 1 },
     achievements: mergeAchievements(saved.achievements),
     stats: { ...DEFAULT_STATS, ...saved.stats },
-    calendar: { ...DEFAULT_CALENDAR, ...saved.calendar },
     sync: DEFAULT_SYNC,
     user: null,
     cloudLoaded: false,
@@ -537,9 +529,6 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_USER':
       return { ...state, user: action.user, cloudLoaded: action.user ? state.cloudLoaded : false };
 
-    case 'SET_CALENDAR':
-      return { ...state, calendar: { ...state.calendar, ...action.payload } };
-
     case 'HYDRATE': {
       const s = action.snapshot;
       const projects = s.projects ? s.projects.map(migrateProject) : state.projects;
@@ -554,22 +543,9 @@ export function reducer(state: AppState, action: Action): AppState {
         game: s.game ?? state.game,
         achievements: s.achievements ? mergeAchievements(s.achievements) : state.achievements,
         stats: { ...state.stats, ...s.stats },
-        calendar: { ...state.calendar, ...s.calendar },
         onboardingDone: s.onboardingDone ?? state.onboardingDone,
         cloudLoaded: true,
       };
-    }
-
-    case 'IMPORT_EVENTS': {
-      const known = new Set(
-        state.projects.map((p) => p.googleEventId).filter(Boolean) as string[]
-      );
-      const additions = action.drafts
-        .filter((d) => !d.googleEventId || !known.has(d.googleEventId))
-        .map(migrateProject);
-      if (additions.length === 0) return state;
-      const projects = [...state.projects, ...additions];
-      return { ...state, projects, schedule: replanToday(state, projects) };
     }
 
     case 'REPLACE_PROJECTS': {

@@ -211,7 +211,20 @@ function sortTimeline(slots: ScheduleSlot[]): ScheduleSlot[] {
 function planDayInto(dateStr: string, settings: Settings, fixtures: Fixture[], pools: Pools): ScheduleSlot[] {
   const slots: ScheduleSlot[] = [];
   const todays = fixturesForDate(fixtures, dateStr);
-  const busy: Interval[] = todays.map((f) => ({ start: f.start, end: f.end }));
+
+  // Hard-busy = blocks + containers (filled separately). Parallel fixtures do NOT
+  // block: tasks flow during them, capped by capacity (the unused tail is blocked).
+  const busy: Interval[] = [];
+  for (const f of todays) {
+    if (f.kind === 'block' || f.kind === 'container') {
+      busy.push({ start: f.start, end: f.end });
+    } else if (f.kind === 'parallel') {
+      const dur = timeDiff(f.start, f.end);
+      const cap = Math.max(0, Math.min(100, f.parallelCapacity ?? 100));
+      const avail = Math.round((dur * cap) / 100);
+      if (avail < dur) busy.push({ start: addMins(f.start, avail), end: f.end });
+    }
+  }
 
   // 1) Render every fixture as a fixed band.
   for (const f of todays) slots.push(fixedSlot(f));

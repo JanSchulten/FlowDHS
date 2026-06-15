@@ -30,9 +30,10 @@ function slotHeight(dur: number): number {
 interface SlotBlockProps {
   slot: ScheduleSlot;
   tagColor: string | undefined;
+  layout?: 'band' | 'side';
 }
 
-function SlotBlock({ slot, tagColor }: SlotBlockProps) {
+function SlotBlock({ slot, tagColor, layout }: SlotBlockProps) {
   const top = slotTop(slot.start);
   const height = slotHeight(slot.dur);
 
@@ -44,6 +45,9 @@ function SlotBlock({ slot, tagColor }: SlotBlockProps) {
     'week-slot',
     slot.type === 'fixed' ? 'week-slot-fixed' : '',
     slot.type === 'break' ? 'week-slot-break' : '',
+    slot.fixtureKind === 'parallel' ? 'week-slot-parallel' : '',
+    layout === 'band' ? 'week-slot-pl-band' : '',
+    layout === 'side' ? 'week-slot-pl-side' : '',
     slot.done ? 'done' : '',
     slot.missed ? 'missed' : '',
   ]
@@ -147,15 +151,27 @@ export function Week({ state, dispatch, onNewFixture }: Props) {
                       />
                     ))}
 
-                    {slots.map((slot) => {
-                      const proj = slot.projectId
-                        ? state.projects.find((p) => p.id === slot.projectId)
-                        : undefined;
-                      const tagColor = TAG_COLORS[proj?.tag ?? slot.tag ?? ''];
-                      return (
-                        <SlotBlock key={slot.id} slot={slot} tagColor={tagColor} />
-                      );
-                    })}
+                    {(() => {
+                      // Parallel appointments share their time with side tasks — render
+                      // the band on the left, overlapping tasks inset on the right.
+                      const parallels = slots.filter((s) => s.type === 'fixed' && s.fixtureKind === 'parallel');
+                      const overlapsParallel = (s: ScheduleSlot) =>
+                        parallels.some((p) => timeToMin(s.start) < timeToMin(p.end) && timeToMin(s.end) > timeToMin(p.start));
+
+                      return slots.map((slot) => {
+                        const proj = slot.projectId
+                          ? state.projects.find((p) => p.id === slot.projectId)
+                          : undefined;
+                        const custom = state.settings.customCategories?.find((c) => c.id === (proj?.tag ?? slot.tag));
+                        const tagColor = custom?.color ?? TAG_COLORS[proj?.tag ?? slot.tag ?? ''];
+
+                        let layout: 'band' | 'side' | undefined;
+                        if (slot.type === 'fixed' && slot.fixtureKind === 'parallel') layout = 'band';
+                        else if (slot.type !== 'fixed' && overlapsParallel(slot)) layout = 'side';
+
+                        return <SlotBlock key={slot.id} slot={slot} tagColor={tagColor} layout={layout} />;
+                      });
+                    })()}
 
                     {isToday && showNowLine && (
                       <div className="week-now-line" style={{ top: nowTop }}>

@@ -1,4 +1,4 @@
-import { Moon, Sun, Search, Cloud, LogIn, Plus, Layers, CalendarClock } from 'lucide-react';
+import { Moon, Sun, Search, Cloud, LogIn, Plus, Layers, CalendarClock, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { SyncState, AppUser } from '../../types';
 import { LevelWidget } from '../ui/LevelWidget';
@@ -79,22 +79,31 @@ export function TopBar({
           <Plus size={15} /> <span className="quick-add-label">Neu</span>
         </button>
         {addOpen && (
-          <div className="quick-add-menu" role="menu">
-            <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewProject(); }}>
-              <Layers size={15} />
-              <span>
-                <strong>Neues Projekt</strong>
-                <small>Aufgabe mit Deadline & Schritten</small>
-              </span>
-            </button>
-            <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewFixture(); }}>
-              <CalendarClock size={15} />
-              <span>
-                <strong>Neuer Termin</strong>
-                <small>Fester, zeitgebundener Termin</small>
-              </span>
-            </button>
-          </div>
+          <>
+            <div className="quick-add-backdrop" onClick={() => setAddOpen(false)} />
+            <div className="quick-add-menu" role="menu">
+              <div className="quick-add-menu-hdr">
+                <span>Neu erstellen</span>
+                <button className="quick-add-close" onClick={() => setAddOpen(false)} aria-label="Schließen">
+                  <X size={16} />
+                </button>
+              </div>
+              <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewProject(); }}>
+                <Layers size={15} />
+                <span>
+                  <strong>Neues Projekt</strong>
+                  <small>Aufgabe mit Deadline & Schritten</small>
+                </span>
+              </button>
+              <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewFixture(); }}>
+                <CalendarClock size={15} />
+                <span>
+                  <strong>Neuer Termin</strong>
+                  <small>Fester, zeitgebundener Termin</small>
+                </span>
+              </button>
+            </div>
+          </>
         )}
       </div>
 

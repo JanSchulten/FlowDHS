@@ -180,7 +180,9 @@ function fillWindow(
     pool.shift();
     cur = end; blockCount++; blockStreak++;
 
-    if (timeDiff(cur, windowEnd) > 0) {
+    // No break right before a Fixtermin — the appointment itself is the context switch.
+    // Only insert one when this stretch runs open all the way to the window's end.
+    if (timeDiff(cur, windowEnd) > 0 && mins(ge) >= mins(windowEnd)) {
       const breakDur = blockStreak % 3 === 0 ? breakL : breakS;
       if (timeDiff(addMins(cur, breakDur), ge) >= 0) {
         const bEnd = addMins(cur, breakDur);

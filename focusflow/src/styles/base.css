@@ -125,6 +125,8 @@ a { color: var(--pri); }
 /* Quick-add ("+") menu */
 .quick-add { position: relative; }
 .quick-add-btn { padding: .42rem .8rem; }
+.quick-add-backdrop { display: none; }
+.quick-add-menu-hdr { display: none; }
 .quick-add-menu {
   position: absolute; top: calc(100% + .5rem); left: 0; z-index: 60;
   min-width: 250px;
@@ -137,6 +139,7 @@ a { color: var(--pri); }
   animation: qa-pop .14s var(--ease, ease) both;
 }
 @keyframes qa-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes qa-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .quick-add-item {
   display: flex; align-items: center; gap: .7rem;
   padding: .55rem .65rem; border-radius: var(--r-md);
@@ -536,6 +539,30 @@ a { color: var(--pri); }
   }
   .overlay.open .modal { transform: translateY(0); }
   .modal-footer { position: sticky; bottom: 0; background: var(--surf2); margin: 1.25rem -1.1rem 0; padding: 1rem 1.1rem calc(.5rem + env(safe-area-inset-bottom)); }
+
+  /* Quick-add → full bottom-sheet panel instead of a dropdown */
+  .quick-add-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 150;
+    background: rgba(0, 0, 0, .55); backdrop-filter: blur(4px);
+  }
+  .quick-add-menu {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 151;
+    min-width: 0; width: 100%;
+    border-radius: var(--r-2xl) var(--r-2xl) 0 0;
+    padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom));
+    animation: qa-sheet-up .22s var(--ease-spring, ease) both;
+  }
+  .quick-add-menu-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: .75rem; padding-bottom: .75rem; border-bottom: 1px solid var(--div);
+  }
+  .quick-add-menu-hdr span { font-size: var(--tx-base); font-weight: 700; }
+  .quick-add-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: var(--r-md);
+    background: var(--surf3); color: var(--tx2);
+  }
+  .quick-add-item { padding: .8rem .7rem; }
 
   /* Command palette */
   .cmd-overlay { padding-top: 8vh; padding-left: .75rem; padding-right: .75rem; }

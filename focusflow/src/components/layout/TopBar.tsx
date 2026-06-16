@@ -1,4 +1,4 @@
-import { Moon, Sun, Search, Cloud, LogIn, Plus, Layers, CalendarClock, X } from 'lucide-react';
+import { Moon, Sun, Search, Cloud, LogIn, Plus, Layers, CalendarClock, CheckSquare, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { SyncState, AppUser } from '../../types';
 import { LevelWidget } from '../ui/LevelWidget';
@@ -14,11 +14,12 @@ interface Props {
   onOpenSettings: () => void;
   onNewProject: () => void;
   onNewFixture: () => void;
+  onNewQuickTask: () => void;
 }
 
 export function TopBar({
   theme, xp, streak, sync, user,
-  onToggleTheme, onOpenCommand, onOpenSettings, onNewProject, onNewFixture,
+  onToggleTheme, onOpenCommand, onOpenSettings, onNewProject, onNewFixture, onNewQuickTask,
 }: Props) {
   const [dateStr, setDateStr] = useState('');
   const [addOpen, setAddOpen] = useState(false);
@@ -100,6 +101,13 @@ export function TopBar({
                 <span>
                   <strong>Neuer Termin</strong>
                   <small>Fester, zeitgebundener Termin</small>
+                </span>
+              </button>
+              <button className="quick-add-item" role="menuitem" onClick={() => { setAddOpen(false); onNewQuickTask(); }}>
+                <CheckSquare size={15} />
+                <span>
+                  <strong>Neue Quick-Task</strong>
+                  <small>Häkchen-Aufgabe ohne Zeitplan</small>
                 </span>
               </button>
             </div>

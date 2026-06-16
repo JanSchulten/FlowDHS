@@ -132,6 +132,14 @@ export interface BrainDumpItem {
   createdAt: number;
 }
 
+/** Simple checkbox to-do — not scheduled by the planner, no fixed time. */
+export interface QuickTask {
+  id: string;
+  label: string;
+  done: boolean;
+  createdAt: number;
+}
+
 /* ── Gamification ── */
 export interface Achievement {
   id: string;
@@ -153,6 +161,7 @@ export interface Stats {
   brainDumps: number;
   focusMins: number;
   breakdowns: number;
+  quickTasksDone: number;
 }
 
 /* ── Auth (Supabase + Google) ── */

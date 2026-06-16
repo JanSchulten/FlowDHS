@@ -8,6 +8,7 @@ export const XP = {
   brainDump: 3,
   breakdown: 8,
   plan: 5,
+  quickTask: 8,
 } as const;
 
 /**

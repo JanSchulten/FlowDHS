@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sun, RefreshCw, Play } from 'lucide-react';
+import { Sun, RefreshCw, Play, X } from 'lucide-react';
 import type { AppState, Action } from '../../store/useStore';
 import type { ScheduleSlot } from '../../types';
 import { todayKey } from '../../engine/utils';
@@ -181,6 +181,38 @@ export function Today({ state, dispatch }: Props) {
         <div className="stat-card"><div className="stat-val">{mins}</div><div className="stat-label">Min. fokussiert</div></div>
         <div className="stat-card"><div className="stat-val">{open}</div><div className="stat-label">Noch offen</div></div>
         <div className="stat-card"><div className="stat-val" style={{ color: 'var(--dopa)' }}>{state.streak}🔥</div><div className="stat-label">Tages-Streak</div></div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div className="card-title">✅ Quick-Tasks</div>
+        {state.quickTasks.length === 0 ? (
+          <p className="form-hint">Schnelle Aufgaben ohne festen Zeitplan — einfach abhaken.</p>
+        ) : (
+          <div className="qt-list">
+            {state.quickTasks.map((t) => (
+              <div key={t.id} className="qt-item">
+                <label className="toggle" style={{ width: 28, height: 16 }}>
+                  <input
+                    type="checkbox"
+                    checked={t.done}
+                    onChange={() => dispatch({ type: 'TOGGLE_QUICK_TASK', id: t.id })}
+                    aria-label={`Quick-Task ${t.done ? 'erledigt' : 'abhaken'}: ${t.label}`}
+                  />
+                  <div className="toggle-track" />
+                </label>
+                <span className={`qt-label ${t.done ? 'done' : ''}`}>{t.label}</span>
+                <button
+                  className="icon-btn"
+                  style={{ width: 24, height: 24 }}
+                  onClick={() => dispatch({ type: 'DELETE_QUICK_TASK', id: t.id })}
+                  aria-label={`Löschen: ${t.label}`}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {slots.length === 0 ? (

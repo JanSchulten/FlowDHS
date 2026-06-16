@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarCheck, CalendarRange, KanbanSquare, Layers, Brain, Timer, Settings as SettingsIcon,
-  Plus, RefreshCw, Moon, Sun, CloudUpload, CalendarClock,
+  Plus, RefreshCw, Moon, Sun, CloudUpload, CalendarClock, CheckSquare,
 } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { toSnapshot } from './store/reducer';
@@ -17,6 +17,7 @@ import { Focus } from './components/pages/Focus';
 import { Settings } from './components/pages/Settings';
 import { ProjectModal } from './components/projects/ProjectModal';
 import { FixtureModal } from './components/projects/FixtureModal';
+import { QuickTaskModal } from './components/projects/QuickTaskModal';
 import type { Project, Fixture } from './types';
 import { useConfetti } from './components/ui/Confetti';
 import { CommandPalette } from './components/ui/CommandPalette';
@@ -34,6 +35,7 @@ export default function App() {
   // Global quick-add modals (reachable from the top bar "+" button).
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [fixtureModalOpen, setFixtureModalOpen] = useState(false);
+  const [quickTaskModalOpen, setQuickTaskModalOpen] = useState(false);
 
   useConfetti(state.confettiTrigger, state.settings.confetti);
 
@@ -133,6 +135,7 @@ export default function App() {
       { id: 'settings', label: 'Gehe zu: Konto & Einstellungen', icon: SettingsIcon, run: () => go('settings') },
       { id: 'new', label: 'Neues Projekt anlegen', hint: 'Erstellen', icon: Plus, run: () => { setProjectModalOpen(true); close(); } },
       { id: 'new-fixture', label: 'Neuen Termin anlegen', hint: 'Erstellen', icon: CalendarClock, run: () => { setFixtureModalOpen(true); close(); } },
+      { id: 'new-quick-task', label: 'Neue Quick-Task anlegen', hint: 'Erstellen', icon: CheckSquare, run: () => { setQuickTaskModalOpen(true); close(); } },
       { id: 'plan', label: 'Woche neu planen', icon: RefreshCw, run: () => { dispatch({ type: 'PLAN_WEEK' }); close(); } },
       { id: 'theme', label: 'Theme wechseln', icon: state.theme === 'dark' ? Sun : Moon, run: () => { dispatch({ type: 'SET_THEME', theme: state.theme === 'dark' ? 'light' : 'dark' }); close(); } },
       {
@@ -182,6 +185,7 @@ export default function App() {
         onOpenSettings={() => navigate('settings')}
         onNewProject={() => setProjectModalOpen(true)}
         onNewFixture={() => setFixtureModalOpen(true)}
+        onNewQuickTask={() => setQuickTaskModalOpen(true)}
       />
       <SideBar
         activePage={state.activePage}
@@ -219,6 +223,14 @@ export default function App() {
         onSave={(data: Omit<Fixture, 'id'>) => {
           dispatch({ type: 'ADD_FIXTURE', payload: data });
           setFixtureModalOpen(false);
+        }}
+      />
+      <QuickTaskModal
+        open={quickTaskModalOpen}
+        onClose={() => setQuickTaskModalOpen(false)}
+        onSave={(label: string) => {
+          dispatch({ type: 'ADD_QUICK_TASK', label });
+          setQuickTaskModalOpen(false);
         }}
       />
     </div>

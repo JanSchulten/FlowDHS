@@ -1,5 +1,5 @@
 import type {
-  Project, Schedule, Settings, Subtask, PomState, BrainDumpItem,
+  Project, Schedule, Settings, Subtask, PomState, BrainDumpItem, QuickTask,
   Gamification, Achievement, Stats, SyncState, Toast, BoardStatus,
   AppUser, Fixture, CustomCategory,
 } from '../types';
@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const DEFAULT_STATS: Stats = {
-  projectsDone: 0, subtasksDone: 0, pomodoros: 0, brainDumps: 0, focusMins: 0, breakdowns: 0,
+  projectsDone: 0, subtasksDone: 0, pomodoros: 0, brainDumps: 0, focusMins: 0, breakdowns: 0, quickTasksDone: 0,
 };
 
 const DEFAULT_SYNC: SyncState = { status: 'idle', message: '', lastSync: null };
@@ -71,6 +71,7 @@ export interface AppState {
   projectFilter: 'all' | 'active' | 'urgent' | 'done';
   confettiTrigger: number;
   brainDump: BrainDumpItem[];
+  quickTasks: QuickTask[];
   game: Gamification;
   achievements: Achievement[];
   stats: Stats;
@@ -92,6 +93,7 @@ export interface Snapshot {
   streak: number;
   theme: 'dark' | 'light';
   brainDump: BrainDumpItem[];
+  quickTasks: QuickTask[];
   game: Gamification;
   achievements: Achievement[];
   stats: Stats;
@@ -107,6 +109,7 @@ export function toSnapshot(state: AppState): Snapshot {
     streak: state.streak,
     theme: state.theme,
     brainDump: state.brainDump,
+    quickTasks: state.quickTasks,
     game: state.game,
     achievements: state.achievements,
     stats: state.stats,
@@ -144,6 +147,9 @@ export type Action =
   | { type: 'ADD_BRAINDUMP'; text: string }
   | { type: 'DELETE_BRAINDUMP'; id: string }
   | { type: 'CONVERT_BRAINDUMP'; id: string }
+  | { type: 'ADD_QUICK_TASK'; label: string }
+  | { type: 'TOGGLE_QUICK_TASK'; id: string }
+  | { type: 'DELETE_QUICK_TASK'; id: string }
   | { type: 'ADD_FIXTURE'; payload: Omit<Fixture, 'id'> }
   | { type: 'UPDATE_FIXTURE'; payload: Fixture }
   | { type: 'DELETE_FIXTURE'; id: string }
@@ -212,6 +218,7 @@ function buildInitialState(): AppState {
     projectFilter: 'all',
     confettiTrigger: 0,
     brainDump: saved.brainDump ?? [],
+    quickTasks: saved.quickTasks ?? [],
     game: saved.game ?? { xp: 0, level: 1 },
     achievements: mergeAchievements(saved.achievements),
     stats: { ...DEFAULT_STATS, ...saved.stats },
@@ -486,7 +493,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'CLEAR_ALL':
       return {
         ...state, projects: [], fixtures: [], schedule: {}, streak: 0, pom: initialPom(25),
-        confettiTrigger: 0, brainDump: [], game: { xp: 0, level: 1 },
+        confettiTrigger: 0, brainDump: [], quickTasks: [], game: { xp: 0, level: 1 },
         achievements: catalogToAchievements(), stats: { ...DEFAULT_STATS }, toast: null,
       };
 
@@ -561,6 +568,29 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     }
 
+    case 'ADD_QUICK_TASK': {
+      const label = action.label.trim();
+      if (!label) return state;
+      const item: QuickTask = { id: uid(), label, done: false, createdAt: Date.now() };
+      return { ...state, quickTasks: [item, ...state.quickTasks] };
+    }
+
+    case 'TOGGLE_QUICK_TASK': {
+      const target = state.quickTasks.find((t) => t.id === action.id);
+      if (!target) return state;
+      const willBeDone = !target.done;
+      const quickTasks = state.quickTasks.map((t) => (t.id === action.id ? { ...t, done: willBeDone } : t));
+      if (willBeDone) {
+        const newStreak = state.streak + 1;
+        const prog = applyProgress(state, XP.quickTask, { quickTasksDone: 1 }, newStreak);
+        return { ...state, quickTasks, streak: newStreak, ...prog };
+      }
+      return { ...state, quickTasks };
+    }
+
+    case 'DELETE_QUICK_TASK':
+      return { ...state, quickTasks: state.quickTasks.filter((t) => t.id !== action.id) };
+
     case 'SET_SYNC':
       return { ...state, sync: { ...state.sync, ...action.payload } };
 
@@ -579,6 +609,7 @@ export function reducer(state: AppState, action: Action): AppState {
         streak: s.streak ?? state.streak,
         theme: s.theme ?? state.theme,
         brainDump: s.brainDump ?? state.brainDump,
+        quickTasks: s.quickTasks ?? state.quickTasks,
         game: s.game ?? state.game,
         achievements: s.achievements ? mergeAchievements(s.achievements) : state.achievements,
         stats: { ...state.stats, ...s.stats },

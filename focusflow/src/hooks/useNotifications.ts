@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+const hasNotificationApi = typeof window !== 'undefined' && 'Notification' in window;
+
 export function useNotifications(enabled: boolean) {
-  const granted = useRef(Notification.permission === 'granted');
+  const granted = useRef(hasNotificationApi && Notification.permission === 'granted');
 
   const request = useCallback(async (): Promise<boolean> => {
-    if (!('Notification' in window)) return false;
+    if (!hasNotificationApi) return false;
     if (Notification.permission === 'granted') { granted.current = true; return true; }
     if (Notification.permission === 'denied') return false;
     const result = await Notification.requestPermission();
@@ -14,7 +16,7 @@ export function useNotifications(enabled: boolean) {
 
   const notify = useCallback((title: string, body: string, icon = '/favicon.svg') => {
     if (!enabled || !granted.current) return;
-    if (!('Notification' in window)) return;
+    if (!hasNotificationApi) return;
     try {
       new Notification(title, { body, icon, badge: '/favicon.svg' });
     } catch {

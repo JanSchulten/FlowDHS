@@ -36,7 +36,7 @@ a { color: var(--pri); }
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0 1.25rem;
+  padding: env(safe-area-inset-top) 1.25rem 0;
   background: var(--glass);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
@@ -518,7 +518,7 @@ a { color: var(--pri); }
   .input-row, .input-row3 { grid-template-columns: 1fr; }
 
   /* TopBar slimming */
-  .topbar { gap: .5rem; padding: 0 .75rem; }
+  .topbar { gap: .5rem; padding: env(safe-area-inset-top) .75rem 0; }
   .cmd-trigger span, .cmd-trigger kbd, .date-chip, .level-xp, .quick-add-label { display: none; }
   .cmd-trigger { padding: .42rem; }
   .quick-add-btn { padding: .42rem .55rem; }

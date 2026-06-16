@@ -23,7 +23,7 @@
   --tx-2xl: clamp(2.25rem, 1.8rem + 2vw, 3.25rem);
 
   --space: 1rem;
-  --header-h: 60px;
+  --header-h: calc(60px + env(safe-area-inset-top));
 }
 
 [data-theme="dark"] {
